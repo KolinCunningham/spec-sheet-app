@@ -2461,6 +2461,94 @@ IMPORTANT: position_x and position_y are percentages (0-100) indicating where on
 - position_y: 0 = top edge, 50 = middle, 100 = bottom edge
 
 Return ONLY the JSON, no other text.`;
+                    } else if (outputStyle === 'measurements') {
+                        // MEASUREMENTS with dimension lines
+                        prompt = `You are an expert at analyzing photos and creating technical dimension drawings like engineering blueprints.
+
+TASK: Analyze this photo and identify ALL measurable dimensions. Create data for dimension lines that will be drawn around the object.
+
+${additionalNotes ? `USER'S ADDITIONAL NOTES:\n${additionalNotes}\n` : ''}
+
+CRITICAL INSTRUCTIONS:
+1. Identify the main object in the photo
+2. Estimate realistic dimensions based on the object type (use standard sizes for common items)
+3. For each dimension, specify:
+   - The measurement value (e.g., "450mm", "18 inches")
+   - The orientation: "horizontal", "vertical", or "diagonal"
+   - Start and end positions as percentages (0-100) on the photo
+4. Include: overall height, overall width, seat height, backrest height, armrest dimensions, base width, etc.
+5. READ any handwritten measurements in the photo
+
+Dimension lines will be drawn WITH ARROWS at each end and the measurement text in the middle.
+- Horizontal dimensions go above or below the object
+- Vertical dimensions go to the left or right of the object
+
+Return JSON with this EXACT structure:
+{
+    "output_type": "measurements",
+    "title": "OBJECT NAME - DIMENSIONS",
+    "subtitle": "All measurements in mm",
+    "dimensions": [
+        {
+            "label": "Overall Height",
+            "value": "1050mm",
+            "orientation": "vertical",
+            "side": "left",
+            "start_percent": 5,
+            "end_percent": 95
+        },
+        {
+            "label": "Seat Height",
+            "value": "450mm",
+            "orientation": "vertical",
+            "side": "left",
+            "start_percent": 60,
+            "end_percent": 95
+        },
+        {
+            "label": "Overall Width",
+            "value": "650mm",
+            "orientation": "horizontal",
+            "side": "bottom",
+            "start_percent": 10,
+            "end_percent": 90
+        },
+        {
+            "label": "Seat Width",
+            "value": "480mm",
+            "orientation": "horizontal",
+            "side": "top",
+            "start_percent": 25,
+            "end_percent": 75
+        },
+        {
+            "label": "Backrest Height",
+            "value": "600mm",
+            "orientation": "vertical",
+            "side": "right",
+            "start_percent": 5,
+            "end_percent": 50
+        }
+    ],
+    "specifications": [
+        {"label": "Overall Height", "value": "1050mm"},
+        {"label": "Seat Height", "value": "450mm"},
+        {"label": "Overall Width", "value": "650mm"}
+    ],
+    "notes": [
+        "Dimensions are approximate estimates",
+        "Actual measurements may vary"
+    ]
+}
+
+IMPORTANT:
+- "side" determines where the dimension line is drawn: "left", "right" for vertical; "top", "bottom" for horizontal
+- start_percent and end_percent (0-100) define where on that axis the dimension spans
+- For vertical: 0 = top of photo, 100 = bottom
+- For horizontal: 0 = left of photo, 100 = right
+- Provide realistic measurements based on the object type (e.g., office chair seat height ~400-500mm)
+
+Return ONLY the JSON, no other text.`;
                     } else {
                         // SPEC SHEET (default) and other modes
                         prompt = `You are an expert at analyzing warehouse/industrial photos with handwritten notes and converting them into clean, professional specification sheets.
@@ -2649,7 +2737,10 @@ Return ONLY the JSON, no other text.`;
                 state.canvas.backgroundColor = '#ffffff';
                 
                 // Check output type and create appropriate layout
-                if (generatedDrawing.output_type === 'technical' || generatedDrawing.callouts) {
+                if (generatedDrawing.output_type === 'measurements' || generatedDrawing.dimensions) {
+                    createMeasurementsDrawing(generatedDrawing);
+                    showToast('Measurements drawing created!', 'success');
+                } else if (generatedDrawing.output_type === 'technical' || generatedDrawing.callouts) {
                     createTechnicalBlueprint(generatedDrawing);
                     showToast('Technical blueprint created!', 'success');
                 } else {
@@ -3292,6 +3383,354 @@ Return ONLY the JSON, no other text.`;
                 
                 state.canvas.renderAll();
                 updateAnnotationsList();
+            }
+            
+            // ----------------------------------------
+            // Measurements Drawing with Dimension Lines
+            // ----------------------------------------
+            function createMeasurementsDrawing(data) {
+                const canvasWidth = state.canvas.width;
+                const canvasHeight = state.canvas.height;
+                
+                // Layout - photo centered with dimension lines around it
+                const margin = 80; // Extra margin for dimension lines
+                const photoMaxWidth = canvasWidth - (margin * 2) - 100;
+                const photoMaxHeight = canvasHeight - (margin * 2) - 80;
+                
+                // Light background
+                state.canvas.backgroundColor = '#fafafa';
+                
+                // === TITLE ===
+                const title = new fabric.Text(data.title || 'DIMENSIONS', {
+                    left: 30,
+                    top: 20,
+                    fontFamily: 'Arial',
+                    fontSize: 20,
+                    fontWeight: 'bold',
+                    fill: '#1a1a1a'
+                });
+                title.annotationType = 'dim-title';
+                state.canvas.add(title);
+                
+                if (data.subtitle) {
+                    const subtitle = new fabric.Text(data.subtitle, {
+                        left: 30,
+                        top: 45,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fill: '#666666'
+                    });
+                    subtitle.annotationType = 'dim-subtitle';
+                    state.canvas.add(subtitle);
+                }
+                
+                // Store photo bounds for dimension positioning
+                let photoBounds = {
+                    left: margin,
+                    top: margin + 30,
+                    width: photoMaxWidth,
+                    height: photoMaxHeight
+                };
+                
+                // === ADD PHOTO CENTERED ===
+                if (state.photos.length > 0) {
+                    const photo = state.photos[0];
+                    
+                    fabric.Image.fromURL(photo.dataUrl, (img) => {
+                        const scale = Math.min(
+                            photoMaxWidth / img.width,
+                            photoMaxHeight / img.height
+                        );
+                        
+                        img.scale(scale);
+                        const scaledWidth = img.width * scale;
+                        const scaledHeight = img.height * scale;
+                        
+                        // Center the photo
+                        const photoLeft = (canvasWidth - scaledWidth) / 2;
+                        const photoTop = margin + 40;
+                        
+                        img.set({
+                            left: photoLeft,
+                            top: photoTop,
+                            selectable: true
+                        });
+                        img.annotationType = 'dim-photo';
+                        state.canvas.add(img);
+                        
+                        // Update bounds for dimension lines
+                        photoBounds = {
+                            left: photoLeft,
+                            top: photoTop,
+                            width: scaledWidth,
+                            height: scaledHeight,
+                            right: photoLeft + scaledWidth,
+                            bottom: photoTop + scaledHeight
+                        };
+                        
+                        // Photo border
+                        const border = new fabric.Rect({
+                            left: photoLeft - 2,
+                            top: photoTop - 2,
+                            width: scaledWidth + 4,
+                            height: scaledHeight + 4,
+                            stroke: '#333333',
+                            strokeWidth: 1,
+                            fill: 'transparent'
+                        });
+                        border.annotationType = 'dim-border';
+                        state.canvas.add(border);
+                        
+                        // === DRAW DIMENSION LINES ===
+                        const dimensions = data.dimensions || [];
+                        let leftDimOffset = 0;
+                        let rightDimOffset = 0;
+                        let topDimOffset = 0;
+                        let bottomDimOffset = 0;
+                        
+                        dimensions.forEach((dim, idx) => {
+                            const dimColor = '#0066cc';
+                            const arrowSize = 8;
+                            const textOffset = 5;
+                            
+                            if (dim.orientation === 'vertical') {
+                                // Calculate Y positions based on percentages
+                                const y1 = photoBounds.top + (photoBounds.height * dim.start_percent / 100);
+                                const y2 = photoBounds.top + (photoBounds.height * dim.end_percent / 100);
+                                
+                                let x;
+                                if (dim.side === 'left') {
+                                    leftDimOffset += 35;
+                                    x = photoBounds.left - leftDimOffset;
+                                } else {
+                                    rightDimOffset += 35;
+                                    x = photoBounds.right + rightDimOffset;
+                                }
+                                
+                                // Main dimension line
+                                const line = new fabric.Line([x, y1, x, y2], {
+                                    stroke: dimColor,
+                                    strokeWidth: 1.5,
+                                    selectable: false
+                                });
+                                line.annotationType = 'dim-line';
+                                state.canvas.add(line);
+                                
+                                // Extension lines (horizontal ticks)
+                                const ext1 = new fabric.Line([x - 8, y1, x + 8, y1], {
+                                    stroke: dimColor,
+                                    strokeWidth: 1,
+                                    selectable: false
+                                });
+                                const ext2 = new fabric.Line([x - 8, y2, x + 8, y2], {
+                                    stroke: dimColor,
+                                    strokeWidth: 1,
+                                    selectable: false
+                                });
+                                ext1.annotationType = 'dim-ext';
+                                ext2.annotationType = 'dim-ext';
+                                state.canvas.add(ext1);
+                                state.canvas.add(ext2);
+                                
+                                // Arrows
+                                drawArrowHead(x, y1, 'down', dimColor, arrowSize);
+                                drawArrowHead(x, y2, 'up', dimColor, arrowSize);
+                                
+                                // Measurement text (rotated for vertical)
+                                const midY = (y1 + y2) / 2;
+                                
+                                // Background for text
+                                const textBg = new fabric.Rect({
+                                    left: x - 25,
+                                    top: midY - 8,
+                                    width: 50,
+                                    height: 16,
+                                    fill: '#ffffff',
+                                    selectable: false
+                                });
+                                textBg.annotationType = 'dim-text-bg';
+                                state.canvas.add(textBg);
+                                
+                                const text = new fabric.Text(dim.value, {
+                                    left: x,
+                                    top: midY,
+                                    fontFamily: 'Arial',
+                                    fontSize: 11,
+                                    fontWeight: 'bold',
+                                    fill: dimColor,
+                                    originX: 'center',
+                                    originY: 'center',
+                                    selectable: false
+                                });
+                                text.annotationType = 'dim-text';
+                                state.canvas.add(text);
+                                
+                            } else if (dim.orientation === 'horizontal') {
+                                // Calculate X positions based on percentages
+                                const x1 = photoBounds.left + (photoBounds.width * dim.start_percent / 100);
+                                const x2 = photoBounds.left + (photoBounds.width * dim.end_percent / 100);
+                                
+                                let y;
+                                if (dim.side === 'top') {
+                                    topDimOffset += 30;
+                                    y = photoBounds.top - topDimOffset;
+                                } else {
+                                    bottomDimOffset += 30;
+                                    y = photoBounds.bottom + bottomDimOffset;
+                                }
+                                
+                                // Main dimension line
+                                const line = new fabric.Line([x1, y, x2, y], {
+                                    stroke: dimColor,
+                                    strokeWidth: 1.5,
+                                    selectable: false
+                                });
+                                line.annotationType = 'dim-line';
+                                state.canvas.add(line);
+                                
+                                // Extension lines (vertical ticks)
+                                const ext1 = new fabric.Line([x1, y - 8, x1, y + 8], {
+                                    stroke: dimColor,
+                                    strokeWidth: 1,
+                                    selectable: false
+                                });
+                                const ext2 = new fabric.Line([x2, y - 8, x2, y + 8], {
+                                    stroke: dimColor,
+                                    strokeWidth: 1,
+                                    selectable: false
+                                });
+                                ext1.annotationType = 'dim-ext';
+                                ext2.annotationType = 'dim-ext';
+                                state.canvas.add(ext1);
+                                state.canvas.add(ext2);
+                                
+                                // Arrows
+                                drawArrowHead(x1, y, 'right', dimColor, arrowSize);
+                                drawArrowHead(x2, y, 'left', dimColor, arrowSize);
+                                
+                                // Measurement text
+                                const midX = (x1 + x2) / 2;
+                                
+                                // Background for text
+                                const textBg = new fabric.Rect({
+                                    left: midX - 30,
+                                    top: y - 8,
+                                    width: 60,
+                                    height: 16,
+                                    fill: '#ffffff',
+                                    selectable: false
+                                });
+                                textBg.annotationType = 'dim-text-bg';
+                                state.canvas.add(textBg);
+                                
+                                const text = new fabric.Text(dim.value, {
+                                    left: midX,
+                                    top: y,
+                                    fontFamily: 'Arial',
+                                    fontSize: 11,
+                                    fontWeight: 'bold',
+                                    fill: dimColor,
+                                    originX: 'center',
+                                    originY: 'center',
+                                    selectable: false
+                                });
+                                text.annotationType = 'dim-text';
+                                state.canvas.add(text);
+                            }
+                        });
+                        
+                        state.canvas.renderAll();
+                    });
+                }
+                
+                // === DIMENSION LEGEND (bottom right) ===
+                const dimensions = data.dimensions || [];
+                const specs = data.specifications || [];
+                const legendX = canvasWidth - 220;
+                const legendY = canvasHeight - 180;
+                
+                // Legend box
+                const legendBox = new fabric.Rect({
+                    left: legendX - 10,
+                    top: legendY - 10,
+                    width: 210,
+                    height: 170,
+                    stroke: '#333333',
+                    strokeWidth: 1,
+                    fill: '#ffffff'
+                });
+                legendBox.annotationType = 'dim-legend-box';
+                state.canvas.add(legendBox);
+                
+                const legendHeader = new fabric.Text('DIMENSIONS', {
+                    left: legendX,
+                    top: legendY,
+                    fontFamily: 'Arial',
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    fill: '#1a1a1a'
+                });
+                legendHeader.annotationType = 'dim-legend-header';
+                state.canvas.add(legendHeader);
+                
+                // List dimensions or specs
+                const dimList = specs.length > 0 ? specs : dimensions.map(d => ({ label: d.label, value: d.value }));
+                dimList.slice(0, 7).forEach((item, idx) => {
+                    const itemY = legendY + 25 + (idx * 18);
+                    const itemText = new fabric.Text(`${item.label}: ${item.value}`, {
+                        left: legendX,
+                        top: itemY,
+                        fontFamily: 'Arial',
+                        fontSize: 10,
+                        fill: '#333333'
+                    });
+                    itemText.annotationType = 'dim-legend-item';
+                    state.canvas.add(itemText);
+                });
+                
+                // === NOTES ===
+                const notes = data.notes || [];
+                if (notes.length > 0) {
+                    const notesY = canvasHeight - 35;
+                    const notesText = new fabric.Text('Note: ' + notes.join(' | '), {
+                        left: 30,
+                        top: notesY,
+                        fontFamily: 'Arial',
+                        fontSize: 9,
+                        fill: '#666666'
+                    });
+                    notesText.annotationType = 'dim-notes';
+                    state.canvas.add(notesText);
+                }
+                
+                state.canvas.renderAll();
+                updateAnnotationsList();
+            }
+            
+            // Helper function to draw arrow heads for dimension lines
+            function drawArrowHead(x, y, direction, color, size) {
+                let points;
+                switch (direction) {
+                    case 'up':
+                        points = [x, y, x - size/2, y + size, x + size/2, y + size];
+                        break;
+                    case 'down':
+                        points = [x, y, x - size/2, y - size, x + size/2, y - size];
+                        break;
+                    case 'left':
+                        points = [x, y, x + size, y - size/2, x + size, y + size/2];
+                        break;
+                    case 'right':
+                        points = [x, y, x - size, y - size/2, x - size, y + size/2];
+                        break;
+                }
+                
+                const arrow = new fabric.Polygon(points, {
+                    fill: color,
+                    selectable: false
+                });
+                arrow.annotationType = 'dim-arrow';
+                state.canvas.add(arrow);
             }
             
             // ----------------------------------------
