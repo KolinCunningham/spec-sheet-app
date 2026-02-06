@@ -14,6 +14,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- html2canvas for capturing content -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- heic2any for HEIC/HEIF conversion (iOS photos) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js"></script>
     
     <style>
         * {
@@ -1249,8 +1251,8 @@ Example:
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
     
-    <!-- Hidden file input -->
-    <input type="file" id="fileInput" class="hidden-input" accept="image/*" multiple>
+    <!-- Hidden file input - accepts HEIC/HEIF from iOS -->
+    <input type="file" id="fileInput" class="hidden-input" accept="image/*,.heic,.heif,image/heic,image/heif" multiple>
     
     <script>
         // ========================================
@@ -1898,15 +1900,134 @@ Example:
                 e.target.value = ''; // Reset input
             }
             
-            function handleFiles(files) {
-                Array.from(files).forEach(file => {
-                    if (file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            addPhotoToCanvas(e.target.result);
-                        };
-                        reader.readAsDataURL(file);
+            async function handleFiles(files) {
+                for (const file of Array.from(files)) {
+                    try {
+                        await processImageFile(file);
+                    } catch (error) {
+                        console.error('Error processing file:', error);
+                        showToast(`Error: ${error.message}`, 'error');
                     }
+                }
+            }
+            
+            async function processImageFile(file) {
+                const isHeic = file.type === 'image/heic' || 
+                               file.type === 'image/heif' || 
+                               file.name.toLowerCase().endsWith('.heic') || 
+                               file.name.toLowerCase().endsWith('.heif');
+                
+                const fileSizeMB = file.size / (1024 * 1024);
+                console.log(`Processing: ${file.name}, Size: ${fileSizeMB.toFixed(2)}MB, Type: ${file.type}, isHEIC: ${isHeic}`);
+                
+                showLoading(`Processing ${file.name}...`);
+                
+                let processedFile = file;
+                
+                // Convert HEIC to JPEG if needed
+                if (isHeic) {
+                    showLoading(`Converting HEIC to JPEG...`);
+                    try {
+                        if (typeof heic2any === 'undefined') {
+                            throw new Error('HEIC converter not loaded. Please refresh the page.');
+                        }
+                        const blob = await heic2any({
+                            blob: file,
+                            toType: 'image/jpeg',
+                            quality: 0.85
+                        });
+                        processedFile = new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' });
+                        console.log(`HEIC converted, new size: ${(processedFile.size / (1024 * 1024)).toFixed(2)}MB`);
+                    } catch (heicError) {
+                        hideLoading();
+                        throw new Error(`Could not convert HEIC file: ${heicError.message}`);
+                    }
+                }
+                
+                // Compress large images (> 2MB)
+                const maxSizeMB = 2;
+                if (processedFile.size > maxSizeMB * 1024 * 1024) {
+                    showLoading(`Compressing image (${(processedFile.size / (1024 * 1024)).toFixed(1)}MB)...`);
+                    processedFile = await compressImage(processedFile, maxSizeMB);
+                    console.log(`Compressed to: ${(processedFile.size / (1024 * 1024)).toFixed(2)}MB`);
+                }
+                
+                // Read and add to canvas
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        addPhotoToCanvas(e.target.result);
+                        hideLoading();
+                        resolve();
+                    };
+                    reader.onerror = () => {
+                        hideLoading();
+                        reject(new Error('Failed to read file'));
+                    };
+                    reader.readAsDataURL(processedFile);
+                });
+            }
+            
+            async function compressImage(file, maxSizeMB) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    const url = URL.createObjectURL(file);
+                    
+                    img.onload = () => {
+                        URL.revokeObjectURL(url);
+                        
+                        // Calculate new dimensions (max 2000px on longest side)
+                        let { width, height } = img;
+                        const maxDimension = 2000;
+                        
+                        if (width > maxDimension || height > maxDimension) {
+                            if (width > height) {
+                                height = Math.round((height * maxDimension) / width);
+                                width = maxDimension;
+                            } else {
+                                width = Math.round((width * maxDimension) / height);
+                                height = maxDimension;
+                            }
+                        }
+                        
+                        // Create canvas and draw resized image
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, width, height);
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Try different quality levels until under max size
+                        let quality = 0.85;
+                        const tryCompress = () => {
+                            canvas.toBlob((blob) => {
+                                if (!blob) {
+                                    reject(new Error('Failed to compress image'));
+                                    return;
+                                }
+                                
+                                if (blob.size > maxSizeMB * 1024 * 1024 && quality > 0.3) {
+                                    quality -= 0.1;
+                                    console.log(`Still too large (${(blob.size / (1024 * 1024)).toFixed(2)}MB), trying quality ${quality.toFixed(1)}`);
+                                    tryCompress();
+                                } else {
+                                    const compressedFile = new File([blob], file.name, { type: 'image/jpeg' });
+                                    resolve(compressedFile);
+                                }
+                            }, 'image/jpeg', quality);
+                        };
+                        
+                        tryCompress();
+                    };
+                    
+                    img.onerror = () => {
+                        URL.revokeObjectURL(url);
+                        reject(new Error('Failed to load image for compression'));
+                    };
+                    
+                    img.src = url;
                 });
             }
             
