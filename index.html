@@ -2399,42 +2399,71 @@ Example:
                     }
                     
                     // Build the prompt based on output style
-                    let styleInstructions = '';
-                    switch (outputStyle) {
-                        case 'spec_sheet':
-                            styleInstructions = `Create a professional SPECIFICATION SHEET with:
-- Title describing what the item is
-- Key measurements and dimensions you can identify or estimate
-- Material callouts if visible
-- Important features and their specifications
-- Any clearances or spacing visible
-- Assembly notes if applicable`;
-                            break;
-                        case 'technical':
-                            styleInstructions = `Create a TECHNICAL BLUEPRINT with:
-- Clean line drawing representing the object's shape
-- All visible dimensions with proper dimension lines
-- Multiple views if needed (front, side, top)
-- Hidden lines shown as dashed
-- Centerlines where appropriate`;
-                            break;
-                        case 'measurements':
-                            styleInstructions = `Focus on MEASUREMENTS ONLY:
-- Identify and list all dimensions you can determine
-- Estimate sizes based on visible references
-- Include width, height, depth, clearances
-- Note any spacing between components`;
-                            break;
-                        case 'instructions':
-                            styleInstructions = `Create ASSEMBLY/INSTALLATION INSTRUCTIONS:
-- Step-by-step notes for assembly or installation
-- Key measurements needed for installation
-- Safety clearances required
-- Important warnings or notes`;
-                            break;
-                    }
+                    let prompt;
                     
-                    const prompt = `You are an expert at analyzing warehouse/industrial photos with handwritten notes and converting them into clean, professional specification sheets.
+                    if (outputStyle === 'technical') {
+                        // TECHNICAL BLUEPRINT with numbered callouts
+                        prompt = `You are an expert at analyzing photos and creating technical documentation with numbered callouts.
+
+TASK: Analyze this photo and identify key components that should be labeled with numbered callouts.
+
+${additionalNotes ? `USER'S ADDITIONAL NOTES:\n${additionalNotes}\n` : ''}
+
+CRITICAL INSTRUCTIONS:
+1. Identify the main object/equipment in the photo
+2. READ ALL HANDWRITTEN TEXT and notes in the photo
+3. Identify 5-10 key components, parts, or measurements to call out
+4. For each callout, specify WHERE on the photo it should point (as percentage from left/top, 0-100)
+5. Include any dimensions or measurements visible
+
+The layout will be:
+- Photo on LEFT side (taking about 55% width)
+- Numbered callout legend on RIGHT side
+
+Return JSON with this EXACT structure:
+{
+    "output_type": "technical",
+    "title": "EQUIPMENT NAME - TECHNICAL VIEW",
+    "subtitle": "Configuration or view shown",
+    "callouts": [
+        {
+            "number": 1,
+            "label": "Component name",
+            "description": "Brief description or measurement",
+            "position_x": 25,
+            "position_y": 30
+        },
+        {
+            "number": 2,
+            "label": "Another component",
+            "description": "50mm clearance required",
+            "position_x": 75,
+            "position_y": 60
+        }
+    ],
+    "transcribed_notes": [
+        {
+            "original": "Handwritten text found",
+            "cleaned": "Clean typed version"
+        }
+    ],
+    "specifications": [
+        {"label": "Overall Width", "value": "XXXmm"},
+        {"label": "Overall Height", "value": "XXXmm"}
+    ],
+    "notes": [
+        "Important note 1"
+    ]
+}
+
+IMPORTANT: position_x and position_y are percentages (0-100) indicating where on the photo each callout should point.
+- position_x: 0 = left edge, 50 = center, 100 = right edge
+- position_y: 0 = top edge, 50 = middle, 100 = bottom edge
+
+Return ONLY the JSON, no other text.`;
+                    } else {
+                        // SPEC SHEET (default) and other modes
+                        prompt = `You are an expert at analyzing warehouse/industrial photos with handwritten notes and converting them into clean, professional specification sheets.
 
 TASK: Analyze this photo and transcribe ALL handwritten notes into clean, typed text.
 
@@ -2453,6 +2482,7 @@ The specifications list will be on the RIGHT side.
 
 Return JSON with this EXACT structure:
 {
+    "output_type": "spec_sheet",
     "title": "EQUIPMENT NAME - CONFIGURATION",
     "subtitle": "Position or state shown",
     "transcribed_notes": [
@@ -2484,6 +2514,7 @@ Return JSON with this EXACT structure:
 BE PRECISE - Read every piece of handwritten text carefully. If you can't read something clearly, indicate that with [unclear].
 
 Return ONLY the JSON, no other text.`;
+                    }
 
                     // Add text prompt at the end
                     imageContents.push({
@@ -2617,10 +2648,16 @@ Return ONLY the JSON, no other text.`;
                 state.canvas.clear();
                 state.canvas.backgroundColor = '#ffffff';
                 
-                // Create professional spec sheet layout
-                createProfessionalSpecSheet(generatedDrawing);
+                // Check output type and create appropriate layout
+                if (generatedDrawing.output_type === 'technical' || generatedDrawing.callouts) {
+                    createTechnicalBlueprint(generatedDrawing);
+                    showToast('Technical blueprint created!', 'success');
+                } else {
+                    createProfessionalSpecSheet(generatedDrawing);
+                    showToast('Spec sheet created!', 'success');
+                }
+                
                 elements.applySpecsBtn.style.display = 'none';
-                showToast('Spec sheet created!', 'success');
             }
             
             function createProfessionalSpecSheet(data) {
@@ -2922,6 +2959,336 @@ Return ONLY the JSON, no other text.`;
                 });
                 blockInfo.annotationType = 'spec-titleblock';
                 state.canvas.add(blockInfo);
+                
+                state.canvas.renderAll();
+                updateAnnotationsList();
+            }
+            
+            // ----------------------------------------
+            // Technical Blueprint with Numbered Callouts
+            // ----------------------------------------
+            function createTechnicalBlueprint(data) {
+                const canvasWidth = state.canvas.width;
+                const canvasHeight = state.canvas.height;
+                
+                // Layout constants - Blueprint style
+                const margin = 30;
+                const photoAreaWidth = canvasWidth * 0.55;
+                const photoAreaHeight = canvasHeight - 180;
+                const legendAreaX = photoAreaWidth + 40;
+                const legendAreaWidth = canvasWidth - legendAreaX - margin;
+                
+                // Blueprint background color (light blue-gray)
+                state.canvas.backgroundColor = '#f0f4f8';
+                
+                // === TITLE BAR ===
+                const titleBar = new fabric.Rect({
+                    left: 0,
+                    top: 0,
+                    width: canvasWidth,
+                    height: 60,
+                    fill: '#1e3a5f'
+                });
+                titleBar.annotationType = 'blueprint-bg';
+                state.canvas.add(titleBar);
+                
+                const title = new fabric.Text(data.title || 'TECHNICAL BLUEPRINT', {
+                    left: margin,
+                    top: 18,
+                    fontFamily: 'Arial',
+                    fontSize: 22,
+                    fontWeight: 'bold',
+                    fill: '#ffffff'
+                });
+                title.annotationType = 'blueprint-title';
+                state.canvas.add(title);
+                
+                if (data.subtitle) {
+                    const subtitle = new fabric.Text(data.subtitle, {
+                        left: margin,
+                        top: 42,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fill: '#a0c4e8'
+                    });
+                    subtitle.annotationType = 'blueprint-subtitle';
+                    state.canvas.add(subtitle);
+                }
+                
+                // Date on top right
+                const dateText = new fabric.Text(`Date: ${new Date().toLocaleDateString()}`, {
+                    left: canvasWidth - 150,
+                    top: 22,
+                    fontFamily: 'Arial',
+                    fontSize: 11,
+                    fill: '#a0c4e8'
+                });
+                dateText.annotationType = 'blueprint-date';
+                state.canvas.add(dateText);
+                
+                // === PHOTO AREA WITH BORDER ===
+                const photoBoxX = margin;
+                const photoBoxY = 75;
+                const photoBoxWidth = photoAreaWidth - 20;
+                const photoBoxHeight = photoAreaHeight - 10;
+                
+                // Photo area border
+                const photoBorder = new fabric.Rect({
+                    left: photoBoxX,
+                    top: photoBoxY,
+                    width: photoBoxWidth,
+                    height: photoBoxHeight,
+                    stroke: '#1e3a5f',
+                    strokeWidth: 2,
+                    fill: '#ffffff'
+                });
+                photoBorder.annotationType = 'blueprint-border';
+                state.canvas.add(photoBorder);
+                
+                // Store photo dimensions for callout positioning
+                let photoLeft = photoBoxX + 10;
+                let photoTop = photoBoxY + 10;
+                let photoWidth = photoBoxWidth - 20;
+                let photoHeight = photoBoxHeight - 20;
+                
+                // === ADD PHOTO ===
+                if (state.photos.length > 0) {
+                    const photo = state.photos[0];
+                    
+                    fabric.Image.fromURL(photo.dataUrl, function(img) {
+                        const scale = Math.min(
+                            (photoBoxWidth - 20) / img.width,
+                            (photoBoxHeight - 20) / img.height
+                        );
+                        
+                        img.scale(scale);
+                        photoWidth = img.width * scale;
+                        photoHeight = img.height * scale;
+                        
+                        // Center photo in box
+                        photoLeft = photoBoxX + (photoBoxWidth - photoWidth) / 2;
+                        photoTop = photoBoxY + (photoBoxHeight - photoHeight) / 2;
+                        
+                        img.set({
+                            left: photoLeft,
+                            top: photoTop,
+                            selectable: true
+                        });
+                        img.annotationType = 'blueprint-photo';
+                        state.canvas.add(img);
+                        
+                        // === ADD NUMBERED CALLOUTS ON PHOTO ===
+                        const callouts = data.callouts || [];
+                        callouts.forEach((callout, idx) => {
+                            // Calculate position on photo based on percentages
+                            const calloutX = photoLeft + (photoWidth * callout.position_x / 100);
+                            const calloutY = photoTop + (photoHeight * callout.position_y / 100);
+                            
+                            // Callout circle (numbered bubble)
+                            const circleRadius = 14;
+                            const circle = new fabric.Circle({
+                                left: calloutX - circleRadius,
+                                top: calloutY - circleRadius,
+                                radius: circleRadius,
+                                fill: '#e53935',
+                                stroke: '#ffffff',
+                                strokeWidth: 2
+                            });
+                            circle.annotationType = 'blueprint-callout';
+                            state.canvas.add(circle);
+                            
+                            // Number inside circle
+                            const number = new fabric.Text(String(callout.number), {
+                                left: calloutX - (callout.number > 9 ? 8 : 5),
+                                top: calloutY - 8,
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                fontWeight: 'bold',
+                                fill: '#ffffff'
+                            });
+                            number.annotationType = 'blueprint-callout-num';
+                            state.canvas.add(number);
+                        });
+                        
+                        state.canvas.renderAll();
+                    });
+                }
+                
+                // === LEGEND PANEL ON RIGHT ===
+                const legendBoxY = 75;
+                const legendBoxHeight = photoBoxHeight;
+                
+                // Legend header bar
+                const legendHeader = new fabric.Rect({
+                    left: legendAreaX,
+                    top: legendBoxY,
+                    width: legendAreaWidth,
+                    height: 35,
+                    fill: '#1e3a5f'
+                });
+                legendHeader.annotationType = 'blueprint-legend-header';
+                state.canvas.add(legendHeader);
+                
+                const legendTitle = new fabric.Text('CALLOUT LEGEND', {
+                    left: legendAreaX + 15,
+                    top: legendBoxY + 10,
+                    fontFamily: 'Arial',
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    fill: '#ffffff'
+                });
+                legendTitle.annotationType = 'blueprint-legend-title';
+                state.canvas.add(legendTitle);
+                
+                // Legend background
+                const legendBg = new fabric.Rect({
+                    left: legendAreaX,
+                    top: legendBoxY + 35,
+                    width: legendAreaWidth,
+                    height: legendBoxHeight - 35,
+                    stroke: '#1e3a5f',
+                    strokeWidth: 2,
+                    fill: '#ffffff'
+                });
+                legendBg.annotationType = 'blueprint-legend-bg';
+                state.canvas.add(legendBg);
+                
+                // === CALLOUT ITEMS IN LEGEND ===
+                const callouts = data.callouts || [];
+                callouts.forEach((callout, idx) => {
+                    const itemY = legendBoxY + 50 + (idx * 45);
+                    
+                    // Number circle in legend
+                    const circleRadius = 12;
+                    const circle = new fabric.Circle({
+                        left: legendAreaX + 15,
+                        top: itemY,
+                        radius: circleRadius,
+                        fill: '#e53935',
+                        stroke: '#ffffff',
+                        strokeWidth: 1
+                    });
+                    circle.annotationType = 'blueprint-legend-circle';
+                    state.canvas.add(circle);
+                    
+                    // Number
+                    const number = new fabric.Text(String(callout.number), {
+                        left: legendAreaX + 15 + circleRadius - (callout.number > 9 ? 7 : 4),
+                        top: itemY + circleRadius - 7,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        fill: '#ffffff'
+                    });
+                    number.annotationType = 'blueprint-legend-num';
+                    state.canvas.add(number);
+                    
+                    // Label
+                    const label = new fabric.Text(callout.label || `Item ${callout.number}`, {
+                        left: legendAreaX + 45,
+                        top: itemY + 2,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        fill: '#1a1a1a'
+                    });
+                    label.annotationType = 'blueprint-legend-label';
+                    state.canvas.add(label);
+                    
+                    // Description
+                    if (callout.description) {
+                        const desc = new fabric.Text(callout.description, {
+                            left: legendAreaX + 45,
+                            top: itemY + 18,
+                            fontFamily: 'Arial',
+                            fontSize: 10,
+                            fill: '#666666'
+                        });
+                        desc.annotationType = 'blueprint-legend-desc';
+                        state.canvas.add(desc);
+                    }
+                });
+                
+                // === SPECIFICATIONS SECTION (if provided) ===
+                const specs = data.specifications || [];
+                if (specs.length > 0 && callouts.length < 8) {
+                    const specsStartY = legendBoxY + 55 + (callouts.length * 45);
+                    
+                    // Separator line
+                    const separator = new fabric.Line([legendAreaX + 10, specsStartY, legendAreaX + legendAreaWidth - 10, specsStartY], {
+                        stroke: '#cccccc',
+                        strokeWidth: 1
+                    });
+                    separator.annotationType = 'blueprint-separator';
+                    state.canvas.add(separator);
+                    
+                    const specsHeader = new fabric.Text('SPECIFICATIONS', {
+                        left: legendAreaX + 15,
+                        top: specsStartY + 10,
+                        fontFamily: 'Arial',
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                        fill: '#1e3a5f'
+                    });
+                    specsHeader.annotationType = 'blueprint-specs-header';
+                    state.canvas.add(specsHeader);
+                    
+                    specs.slice(0, 5).forEach((spec, idx) => {
+                        const specY = specsStartY + 30 + (idx * 18);
+                        
+                        const specText = new fabric.Text(`${spec.label}: ${spec.value}`, {
+                            left: legendAreaX + 15,
+                            top: specY,
+                            fontFamily: 'Arial',
+                            fontSize: 10,
+                            fill: '#333333'
+                        });
+                        specText.annotationType = 'blueprint-spec';
+                        state.canvas.add(specText);
+                    });
+                }
+                
+                // === NOTES AT BOTTOM ===
+                const notes = data.notes || [];
+                const transcribed = data.transcribed_notes || [];
+                const allNotes = [...transcribed.map(t => t.cleaned), ...notes];
+                
+                if (allNotes.length > 0) {
+                    const notesY = canvasHeight - 80;
+                    
+                    const notesBar = new fabric.Rect({
+                        left: 0,
+                        top: notesY - 10,
+                        width: canvasWidth,
+                        height: 90,
+                        fill: '#e8eef4'
+                    });
+                    notesBar.annotationType = 'blueprint-notes-bg';
+                    state.canvas.add(notesBar);
+                    
+                    const notesHeader = new fabric.Text('NOTES:', {
+                        left: margin,
+                        top: notesY,
+                        fontFamily: 'Arial',
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                        fill: '#1e3a5f'
+                    });
+                    notesHeader.annotationType = 'blueprint-notes-header';
+                    state.canvas.add(notesHeader);
+                    
+                    allNotes.slice(0, 3).forEach((note, idx) => {
+                        const noteText = new fabric.Text(`${idx + 1}. ${note}`, {
+                            left: margin,
+                            top: notesY + 18 + (idx * 16),
+                            fontFamily: 'Arial',
+                            fontSize: 10,
+                            fill: '#333333'
+                        });
+                        noteText.annotationType = 'blueprint-note';
+                        state.canvas.add(noteText);
+                    });
+                }
                 
                 state.canvas.renderAll();
                 updateAnnotationsList();
