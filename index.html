@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SpecSheet">
+    <title>SpecSheet - Annotated Instruction Sheets</title>
+    
+    <!-- Fabric.js for canvas annotations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- html2canvas for capturing content -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger-color: #dc2626;
+            --success-color: #16a34a;
+            --warning-color: #f59e0b;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        /* Header */
+        .app-header {
+            background: var(--card-bg);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .app-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 52px;
+            touch-action: manipulation;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover, .btn-primary:active {
+            background: var(--primary-hover);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-color);
+            color: var(--text-color);
+            border: 2px solid var(--border-color);
+        }
+        
+        .btn-secondary:hover, .btn-secondary:active {
+            background: var(--border-color);
+        }
+        
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+        
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+        
+        .btn-icon {
+            padding: 14px;
+            min-width: 52px;
+        }
+        
+        .btn-sm {
+            padding: 10px 16px;
+            font-size: 14px;
+            min-height: 44px;
+        }
+        
+        .btn svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 77px);
+        }
+        
+        /* Toolbar */
+        .toolbar {
+            width: 80px;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 15px 10px;
+            gap: 10px;
+            overflow-y: auto;
+        }
+        
+        .tool-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            background: var(--bg-color);
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        
+        .tool-btn:hover, .tool-btn:active {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .tool-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-hover);
+        }
+        
+        .tool-btn svg {
+            width: 28px;
+            height: 28px;
+        }
+        
+        .tool-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 5px 0;
+        }
+        
+        /* Canvas Area */
+        .canvas-area {
+            flex: 1;
+            padding: 20px;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        
+        .paper-container {
+            background: white;
+            box-shadow: var(--shadow-lg);
+            border-radius: 4px;
+            position: relative;
+            /* A4 Landscape: 297mm x 210mm, scaled for screen */
+            width: 1122px;
+            height: 794px;
+            min-width: 1122px;
+            min-height: 794px;
+        }
+        
+        .paper-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            z-index: 10;
+        }
+        
+        .paper-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+        
+        .paper-title input {
+            border: none;
+            font-size: inherit;
+            font-weight: inherit;
+            color: inherit;
+            background: transparent;
+            width: 400px;
+        }
+        
+        .paper-title input:focus {
+            outline: none;
+            border-bottom: 2px solid var(--primary-color);
+        }
+        
+        .paper-meta {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        
+        #fabricCanvas {
+            position: absolute;
+            top: 70px;
+            left: 0;
+        }
+        
+        /* Sidebar Panel */
+        .sidebar {
+            width: 320px;
+            background: var(--card-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            font-size: 18px;
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 25px;
+        }
+        
+        .sidebar-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Color Picker */
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+        
+        .color-swatch {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        
+        .color-swatch:hover, .color-swatch:active {
+            transform: scale(1.1);
+        }
+        
+        .color-swatch.active {
+            border-color: var(--text-color);
+        }
+        
+        /* Input Groups */
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+        
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus,
+        .input-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .input-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        /* Slider */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 8px;
+            -webkit-appearance: none;
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+        }
+        
+        .slider-value {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        /* Voice Recording */
+        .voice-recorder {
+            background: var(--bg-color);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .record-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--danger-color);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            transition: all 0.2s;
+        }
+        
+        .record-btn:hover, .record-btn:active {
+            transform: scale(1.05);
+        }
+        
+        .record-btn.recording {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        .record-btn svg {
+            width: 36px;
+            height: 36px;
+            color: white;
+        }
+        
+        .recording-status {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+        
+        .transcription-box {
+            background: white;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            text-align: left;
+            min-height: 80px;
+            font-size: 14px;
+        }
+        
+        .transcription-box.has-content {
+            border-color: var(--success-color);
+        }
+        
+        /* Photo Grid */
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .photo-thumb {
+            aspect-ratio: 4/3;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .photo-thumb:hover, .photo-thumb:active {
+            border-color: var(--primary-color);
+        }
+        
+        .photo-thumb.selected {
+            border-color: var(--primary-color);
+        }
+        
+        .photo-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .photo-thumb .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .photo-thumb:hover .delete-btn {
+            opacity: 1;
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+        
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+        
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .modal-actions .btn {
+            flex: 1;
+        }
+        
+        /* Camera Modal */
+        .camera-preview {
+            width: 100%;
+            aspect-ratio: 4/3;
+            background: black;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .camera-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .toast {
+            background: var(--text-color);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            font-weight: 500;
+            box-shadow: var(--shadow-lg);
+            animation: slideUp 0.3s ease;
+        }
+        
+        .toast.success {
+            background: var(--success-color);
+        }
+        
+        .toast.error {
+            background: var(--danger-color);
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .loading-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+        
+        /* Annotations List */
+        .annotation-item {
+            background: var(--bg-color);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .annotation-item:hover, .annotation-item:active {
+            background: var(--border-color);
+        }
+        
+        .annotation-item.selected {
+            border: 2px solid var(--primary-color);
+        }
+        
+        .annotation-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .annotation-type {
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .annotation-type .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .annotation-text {
+            font-size: 13px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Preview Mode */
+        .preview-mode .toolbar,
+        .preview-mode .sidebar {
+            display: none;
+        }
+        
+        .preview-mode .canvas-area {
+            background: var(--text-color);
+        }
+        
+        .preview-mode .paper-container {
+            margin: auto;
+        }
+        
+        /* AI Panel */
+        .ai-suggestions {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 20px;
+            color: white;
+        }
+        
+        .ai-suggestions-title {
+            font-weight: 700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .ai-suggestion-item {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .ai-suggestion-item:hover, .ai-suggestion-item:active {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .ai-suggestion-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* Settings Modal */
+        .settings-section {
+            margin-bottom: 25px;
+        }
+        
+        .settings-section-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        /* Responsive adjustments for smaller iPads */
+        @media (max-width: 1024px) {
+            .paper-container {
+                transform: scale(0.8);
+                transform-origin: top center;
+            }
+            
+            .sidebar {
+                width: 280px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .toolbar {
+                width: 100%;
+                flex-direction: row;
+                overflow-x: auto;
+                padding: 10px;
+            }
+            
+            .tool-btn {
+                min-width: 60px;
+            }
+            
+            .sidebar {
+                width: 100%;
+                max-height: 40vh;
+            }
+            
+            .paper-container {
+                transform: scale(0.5);
+            }
+        }
+        
+        /* Hidden file input */
+        .hidden-input {
+            display: none;
+        }
+        
+        /* Drop zone styling */
+        .drop-zone {
+            border: 3px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--primary-color);
+            background: rgba(37, 99, 235, 0.05);
+        }
+        
+        .drop-zone svg {
+            width: 48px;
+            height: 48px;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+        }
+        
+        .drop-zone-text {
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+        
+        /* Fabric canvas object controls */
+        .canvas-container {
+            position: absolute !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- App Header -->
+    <header class="app-header">
+        <h1 class="app-title">SpecSheet</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" id="previewBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                Preview
+            </button>
+            <button class="btn btn-secondary" id="settingsBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+            </button>
+            <button class="btn btn-primary" id="exportPdfBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Export PDF
+            </button>
+        </div>
+    </header>
+    
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <button class="tool-btn active" data-tool="select" title="Select">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
+                </svg>
+                <span>Select</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="camera" title="Camera">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                    <circle cx="12" cy="13" r="4"></circle>
+                </svg>
+                <span>Camera</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="upload" title="Upload">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>Upload</span>
+            </button>
+            
+            <div class="tool-divider"></div>
+            
+            <button class="tool-btn" data-tool="arrow" title="Arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+                <span>Arrow</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="circle" title="Circle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                </svg>
+                <span>Circle</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="line" title="Line">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="19" x2="19" y2="5"></line>
+                </svg>
+                <span>Line</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="rect" title="Rectangle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                </svg>
+                <span>Rect</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="text" title="Text">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                    <line x1="9" y1="20" x2="15" y2="20"></line>
+                    <line x1="12" y1="4" x2="12" y2="20"></line>
+                </svg>
+                <span>Text</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="freehand" title="Draw">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                    <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                    <path d="M2 2l7.586 7.586"></path>
+                    <circle cx="11" cy="11" r="2"></circle>
+                </svg>
+                <span>Draw</span>
+            </button>
+            
+            <div class="tool-divider"></div>
+            
+            <button class="tool-btn" data-tool="voice" title="Voice">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+                <span>Voice</span>
+            </button>
+            
+            <button class="tool-btn" data-tool="ai" title="AI Enhance">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                <span>AI</span>
+            </button>
+            
+            <div class="tool-divider"></div>
+            
+            <button class="tool-btn" data-tool="delete" title="Delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>Delete</span>
+            </button>
+        </div>
+        
+        <!-- Canvas Area -->
+        <div class="canvas-area">
+            <div class="paper-container" id="paperContainer">
+                <div class="paper-header">
+                    <div class="paper-title">
+                        <input type="text" id="sheetTitle" value="Specification Sheet" placeholder="Enter title...">
+                    </div>
+                    <div class="paper-meta" id="sheetMeta">
+                        Created by User on <span id="currentDate"></span>
+                    </div>
+                </div>
+                <canvas id="fabricCanvas"></canvas>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">Properties</div>
+            <div class="sidebar-content">
+                <!-- Colors Section -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Color</div>
+                    <div class="color-grid" id="colorPicker">
+                        <div class="color-swatch active" data-color="#dc2626" style="background: #dc2626;"></div>
+                        <div class="color-swatch" data-color="#2563eb" style="background: #2563eb;"></div>
+                        <div class="color-swatch" data-color="#16a34a" style="background: #16a34a;"></div>
+                        <div class="color-swatch" data-color="#f59e0b" style="background: #f59e0b;"></div>
+                        <div class="color-swatch" data-color="#8b5cf6" style="background: #8b5cf6;"></div>
+                        <div class="color-swatch" data-color="#ec4899" style="background: #ec4899;"></div>
+                        <div class="color-swatch" data-color="#06b6d4" style="background: #06b6d4;"></div>
+                        <div class="color-swatch" data-color="#000000" style="background: #000000;"></div>
+                        <div class="color-swatch" data-color="#6b7280" style="background: #6b7280;"></div>
+                        <div class="color-swatch" data-color="#ffffff" style="background: #ffffff; border: 1px solid #e5e7eb;"></div>
+                    </div>
+                </div>
+                
+                <!-- Stroke Width -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Stroke Width</div>
+                    <div class="slider-container">
+                        <input type="range" id="strokeWidth" min="1" max="10" value="3">
+                        <span class="slider-value" id="strokeWidthValue">3</span>
+                    </div>
+                </div>
+                
+                <!-- Font Size (for text) -->
+                <div class="sidebar-section" id="fontSizeSection" style="display: none;">
+                    <div class="sidebar-section-title">Font Size</div>
+                    <div class="slider-container">
+                        <input type="range" id="fontSize" min="12" max="72" value="24">
+                        <span class="slider-value" id="fontSizeValue">24</span>
+                    </div>
+                </div>
+                
+                <!-- Text Input (for text tool) -->
+                <div class="sidebar-section" id="textInputSection" style="display: none;">
+                    <div class="sidebar-section-title">Text Content</div>
+                    <div class="input-group">
+                        <textarea id="textContent" placeholder="Enter your annotation text..."></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="addTextBtn" style="width: 100%;">Add Text</button>
+                </div>
+                
+                <!-- Voice Recorder Section -->
+                <div class="sidebar-section" id="voiceSection" style="display: none;">
+                    <div class="sidebar-section-title">Voice Memo</div>
+                    <div class="voice-recorder">
+                        <button class="record-btn" id="recordBtn">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="12" r="6"></circle>
+                            </svg>
+                        </button>
+                        <div class="recording-status" id="recordingStatus">Tap to start recording</div>
+                        <div class="transcription-box" id="transcriptionBox">
+                            <span style="color: var(--text-muted);">Transcription will appear here...</span>
+                        </div>
+                        <button class="btn btn-success btn-sm" id="addTranscriptionBtn" style="width: 100%; margin-top: 15px; display: none;">
+                            Add as Annotation
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- AI Section -->
+                <div class="sidebar-section" id="aiSection" style="display: none;">
+                    <div class="sidebar-section-title">AI Assistant</div>
+                    <div class="ai-suggestions">
+                        <div class="ai-suggestions-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                            AI Suggestions
+                        </div>
+                        <div id="aiSuggestionsList">
+                            <p style="font-size: 14px; opacity: 0.9;">Click "Generate" to get AI suggestions for improving your spec sheet.</p>
+                        </div>
+                    </div>
+                    <div class="input-group" style="margin-top: 15px;">
+                        <label>OpenAI API Key</label>
+                        <input type="password" id="openaiKey" placeholder="sk-...">
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="generateAiBtn" style="width: 100%; margin-top: 10px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        Generate Suggestions
+                    </button>
+                </div>
+                
+                <!-- Photos Section -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Photos (<span id="photoCount">0</span>)</div>
+                    <div class="photo-grid" id="photoGrid">
+                        <!-- Photos will be added here -->
+                    </div>
+                    <div class="drop-zone" id="dropZone" style="margin-top: 15px;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        <div class="drop-zone-text">Drop photos here or tap to upload</div>
+                    </div>
+                </div>
+                
+                <!-- Annotations List -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Annotations (<span id="annotationCount">0</span>)</div>
+                    <div id="annotationsList">
+                        <!-- Annotations will be listed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Camera Modal -->
+    <div class="modal-overlay" id="cameraModal">
+        <div class="modal">
+            <h2 class="modal-title">Take Photo</h2>
+            <div class="camera-preview">
+                <video id="cameraVideo" autoplay playsinline></video>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="closeCameraBtn">Cancel</button>
+                <button class="btn btn-primary" id="captureBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <circle cx="12" cy="12" r="10"></circle>
+                    </svg>
+                    Capture
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <h2 class="modal-title">Settings</h2>
+            <div class="settings-section">
+                <h3 class="settings-section-title">Document</h3>
+                <div class="input-group">
+                    <label>Paper Size</label>
+                    <select id="paperSize">
+                        <option value="a4">A4 Landscape (297 x 210 mm)</option>
+                        <option value="letter">Letter Landscape (11 x 8.5 in)</option>
+                        <option value="legal">Legal Landscape (14 x 8.5 in)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Created By</label>
+                    <input type="text" id="creatorName" placeholder="Your name">
+                </div>
+            </div>
+            <div class="settings-section">
+                <h3 class="settings-section-title">Export</h3>
+                <div class="input-group">
+                    <label>PDF Quality</label>
+                    <select id="pdfQuality">
+                        <option value="high">High (300 DPI)</option>
+                        <option value="medium" selected>Medium (150 DPI)</option>
+                        <option value="low">Low (72 DPI)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="settings-section">
+                <h3 class="settings-section-title">AI Integration</h3>
+                <div class="input-group">
+                    <label>OpenAI API Key</label>
+                    <input type="password" id="settingsOpenaiKey" placeholder="sk-...">
+                </div>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 5px;">
+                    Required for AI-powered suggestions. Get your key at <a href="https://platform.openai.com" target="_blank">platform.openai.com</a>
+                </p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="closeSettingsBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Processing...</div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" class="hidden-input" accept="image/*" multiple>
+    
+    <script>
+        // ========================================
+        // SpecSheet App - Main JavaScript
+        // ========================================
+        
+        (function() {
+            'use strict';
+            
+            // ----------------------------------------
+            // State Management
+            // ----------------------------------------
+            const state = {
+                currentTool: 'select',
+                currentColor: '#dc2626',
+                strokeWidth: 3,
+                fontSize: 24,
+                isRecording: false,
+                recognition: null,
+                mediaRecorder: null,
+                audioChunks: [],
+                transcription: '',
+                photos: [],
+                canvas: null,
+                isDrawing: false,
+                drawingObject: null,
+                startX: 0,
+                startY: 0,
+                settings: {
+                    paperSize: 'a4',
+                    creatorName: 'User',
+                    pdfQuality: 'medium',
+                    openaiKey: ''
+                }
+            };
+            
+            // Paper dimensions (in pixels at 96 DPI for screen)
+            const paperSizes = {
+                a4: { width: 1122, height: 794 },      // 297mm x 210mm landscape
+                letter: { width: 1056, height: 816 },  // 11in x 8.5in landscape
+                legal: { width: 1344, height: 816 }    // 14in x 8.5in landscape
+            };
+            
+            // ----------------------------------------
+            // DOM Elements
+            // ----------------------------------------
+            const elements = {
+                paperContainer: document.getElementById('paperContainer'),
+                fabricCanvas: document.getElementById('fabricCanvas'),
+                sheetTitle: document.getElementById('sheetTitle'),
+                currentDate: document.getElementById('currentDate'),
+                sheetMeta: document.getElementById('sheetMeta'),
+                colorPicker: document.getElementById('colorPicker'),
+                strokeWidth: document.getElementById('strokeWidth'),
+                strokeWidthValue: document.getElementById('strokeWidthValue'),
+                fontSize: document.getElementById('fontSize'),
+                fontSizeValue: document.getElementById('fontSizeValue'),
+                fontSizeSection: document.getElementById('fontSizeSection'),
+                textInputSection: document.getElementById('textInputSection'),
+                textContent: document.getElementById('textContent'),
+                addTextBtn: document.getElementById('addTextBtn'),
+                voiceSection: document.getElementById('voiceSection'),
+                recordBtn: document.getElementById('recordBtn'),
+                recordingStatus: document.getElementById('recordingStatus'),
+                transcriptionBox: document.getElementById('transcriptionBox'),
+                addTranscriptionBtn: document.getElementById('addTranscriptionBtn'),
+                aiSection: document.getElementById('aiSection'),
+                openaiKey: document.getElementById('openaiKey'),
+                generateAiBtn: document.getElementById('generateAiBtn'),
+                aiSuggestionsList: document.getElementById('aiSuggestionsList'),
+                photoGrid: document.getElementById('photoGrid'),
+                photoCount: document.getElementById('photoCount'),
+                dropZone: document.getElementById('dropZone'),
+                annotationsList: document.getElementById('annotationsList'),
+                annotationCount: document.getElementById('annotationCount'),
+                cameraModal: document.getElementById('cameraModal'),
+                cameraVideo: document.getElementById('cameraVideo'),
+                closeCameraBtn: document.getElementById('closeCameraBtn'),
+                captureBtn: document.getElementById('captureBtn'),
+                settingsModal: document.getElementById('settingsModal'),
+                settingsBtn: document.getElementById('settingsBtn'),
+                closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+                saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+                paperSize: document.getElementById('paperSize'),
+                creatorName: document.getElementById('creatorName'),
+                pdfQuality: document.getElementById('pdfQuality'),
+                settingsOpenaiKey: document.getElementById('settingsOpenaiKey'),
+                previewBtn: document.getElementById('previewBtn'),
+                exportPdfBtn: document.getElementById('exportPdfBtn'),
+                loadingOverlay: document.getElementById('loadingOverlay'),
+                loadingText: document.getElementById('loadingText'),
+                toastContainer: document.getElementById('toastContainer'),
+                fileInput: document.getElementById('fileInput')
+            };
+            
+            // ----------------------------------------
+            // Initialization
+            // ----------------------------------------
+            function init() {
+                // Set current date
+                const now = new Date();
+                elements.currentDate.textContent = now.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
+                // Load saved settings
+                loadSettings();
+                
+                // Initialize Fabric.js canvas
+                initCanvas();
+                
+                // Initialize Speech Recognition
+                initSpeechRecognition();
+                
+                // Bind event listeners
+                bindEvents();
+                
+                // Update UI
+                updateAnnotationsList();
+            }
+            
+            function initCanvas() {
+                const size = paperSizes[state.settings.paperSize];
+                state.canvas = new fabric.Canvas('fabricCanvas', {
+                    width: size.width,
+                    height: size.height - 70, // Account for header
+                    backgroundColor: '#ffffff',
+                    selection: true,
+                    preserveObjectStacking: true
+                });
+                
+                // Canvas events
+                state.canvas.on('mouse:down', handleCanvasMouseDown);
+                state.canvas.on('mouse:move', handleCanvasMouseMove);
+                state.canvas.on('mouse:up', handleCanvasMouseUp);
+                state.canvas.on('selection:created', handleSelectionCreated);
+                state.canvas.on('selection:updated', handleSelectionCreated);
+                state.canvas.on('selection:cleared', handleSelectionCleared);
+                state.canvas.on('object:modified', updateAnnotationsList);
+                state.canvas.on('object:added', updateAnnotationsList);
+                state.canvas.on('object:removed', updateAnnotationsList);
+            }
+            
+            function initSpeechRecognition() {
+                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    state.recognition = new SpeechRecognition();
+                    state.recognition.continuous = true;
+                    state.recognition.interimResults = true;
+                    state.recognition.lang = 'en-US';
+                    
+                    state.recognition.onresult = function(event) {
+                        let interimTranscript = '';
+                        let finalTranscript = '';
+                        
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                finalTranscript += transcript;
+                            } else {
+                                interimTranscript += transcript;
+                            }
+                        }
+                        
+                        state.transcription = finalTranscript || interimTranscript;
+                        elements.transcriptionBox.innerHTML = state.transcription || '<span style="color: var(--text-muted);">Listening...</span>';
+                        elements.transcriptionBox.classList.toggle('has-content', !!state.transcription);
+                        elements.addTranscriptionBtn.style.display = state.transcription ? 'block' : 'none';
+                    };
+                    
+                    state.recognition.onerror = function(event) {
+                        console.error('Speech recognition error:', event.error);
+                        showToast('Speech recognition error: ' + event.error, 'error');
+                        stopRecording();
+                    };
+                    
+                    state.recognition.onend = function() {
+                        if (state.isRecording) {
+                            state.recognition.start(); // Restart if still recording
+                        }
+                    };
+                } else {
+                    console.warn('Speech recognition not supported');
+                }
+            }
+            
+            // ----------------------------------------
+            // Event Binding
+            // ----------------------------------------
+            function bindEvents() {
+                // Tool buttons
+                document.querySelectorAll('.tool-btn').forEach(btn => {
+                    btn.addEventListener('click', () => handleToolSelect(btn.dataset.tool));
+                });
+                
+                // Color picker
+                elements.colorPicker.addEventListener('click', (e) => {
+                    const swatch = e.target.closest('.color-swatch');
+                    if (swatch) {
+                        setColor(swatch.dataset.color);
+                    }
+                });
+                
+                // Stroke width slider
+                elements.strokeWidth.addEventListener('input', (e) => {
+                    state.strokeWidth = parseInt(e.target.value);
+                    elements.strokeWidthValue.textContent = state.strokeWidth;
+                    updateSelectedObject('strokeWidth', state.strokeWidth);
+                });
+                
+                // Font size slider
+                elements.fontSize.addEventListener('input', (e) => {
+                    state.fontSize = parseInt(e.target.value);
+                    elements.fontSizeValue.textContent = state.fontSize;
+                    updateSelectedObject('fontSize', state.fontSize);
+                });
+                
+                // Add text button
+                elements.addTextBtn.addEventListener('click', addTextAnnotation);
+                
+                // Voice recording
+                elements.recordBtn.addEventListener('click', toggleRecording);
+                elements.addTranscriptionBtn.addEventListener('click', addTranscriptionAsAnnotation);
+                
+                // AI generation
+                elements.generateAiBtn.addEventListener('click', generateAiSuggestions);
+                
+                // Drop zone
+                elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+                elements.dropZone.addEventListener('dragover', handleDragOver);
+                elements.dropZone.addEventListener('dragleave', handleDragLeave);
+                elements.dropZone.addEventListener('drop', handleDrop);
+                
+                // File input
+                elements.fileInput.addEventListener('change', handleFileSelect);
+                
+                // Camera modal
+                elements.closeCameraBtn.addEventListener('click', closeCameraModal);
+                elements.captureBtn.addEventListener('click', capturePhoto);
+                
+                // Settings modal
+                elements.settingsBtn.addEventListener('click', openSettingsModal);
+                elements.closeSettingsBtn.addEventListener('click', closeSettingsModal);
+                elements.saveSettingsBtn.addEventListener('click', saveSettings);
+                
+                // Preview button
+                elements.previewBtn.addEventListener('click', togglePreview);
+                
+                // Export PDF button
+                elements.exportPdfBtn.addEventListener('click', exportPdf);
+                
+                // Click outside modal to close
+                elements.cameraModal.addEventListener('click', (e) => {
+                    if (e.target === elements.cameraModal) closeCameraModal();
+                });
+                elements.settingsModal.addEventListener('click', (e) => {
+                    if (e.target === elements.settingsModal) closeSettingsModal();
+                });
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', handleKeydown);
+            }
+            
+            // ----------------------------------------
+            // Tool Handling
+            // ----------------------------------------
+            function handleToolSelect(tool) {
+                state.currentTool = tool;
+                
+                // Update tool buttons
+                document.querySelectorAll('.tool-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tool === tool);
+                });
+                
+                // Update canvas mode
+                state.canvas.isDrawingMode = (tool === 'freehand');
+                if (tool === 'freehand') {
+                    state.canvas.freeDrawingBrush.color = state.currentColor;
+                    state.canvas.freeDrawingBrush.width = state.strokeWidth;
+                }
+                
+                // Show/hide sections
+                elements.fontSizeSection.style.display = (tool === 'text') ? 'block' : 'none';
+                elements.textInputSection.style.display = (tool === 'text') ? 'block' : 'none';
+                elements.voiceSection.style.display = (tool === 'voice') ? 'block' : 'none';
+                elements.aiSection.style.display = (tool === 'ai') ? 'block' : 'none';
+                
+                // Handle special tools
+                if (tool === 'camera') {
+                    openCameraModal();
+                } else if (tool === 'upload') {
+                    elements.fileInput.click();
+                } else if (tool === 'delete') {
+                    deleteSelectedObjects();
+                }
+                
+                // Set canvas selection mode
+                state.canvas.selection = (tool === 'select');
+                state.canvas.forEachObject(obj => {
+                    obj.selectable = (tool === 'select');
+                });
+            }
+            
+            function setColor(color) {
+                state.currentColor = color;
+                
+                // Update color swatches
+                document.querySelectorAll('.color-swatch').forEach(swatch => {
+                    swatch.classList.toggle('active', swatch.dataset.color === color);
+                });
+                
+                // Update freehand brush
+                if (state.canvas.freeDrawingBrush) {
+                    state.canvas.freeDrawingBrush.color = color;
+                }
+                
+                // Update selected object
+                updateSelectedObject('stroke', color);
+                updateSelectedObject('fill', color);
+            }
+            
+            function updateSelectedObject(property, value) {
+                const activeObject = state.canvas.getActiveObject();
+                if (activeObject) {
+                    if (property === 'stroke' || property === 'strokeWidth') {
+                        activeObject.set(property, value);
+                    } else if (property === 'fill' && activeObject.type === 'i-text') {
+                        activeObject.set('fill', value);
+                    } else if (property === 'fontSize' && activeObject.type === 'i-text') {
+                        activeObject.set('fontSize', value);
+                    }
+                    state.canvas.renderAll();
+                }
+            }
+            
+            // ----------------------------------------
+            // Canvas Drawing
+            // ----------------------------------------
+            function handleCanvasMouseDown(opt) {
+                if (state.currentTool === 'select' || state.currentTool === 'freehand') return;
+                
+                const pointer = state.canvas.getPointer(opt.e);
+                state.isDrawing = true;
+                state.startX = pointer.x;
+                state.startY = pointer.y;
+                
+                switch (state.currentTool) {
+                    case 'arrow':
+                    case 'line':
+                        state.drawingObject = new fabric.Line([state.startX, state.startY, state.startX, state.startY], {
+                            stroke: state.currentColor,
+                            strokeWidth: state.strokeWidth,
+                            selectable: false,
+                            evented: false
+                        });
+                        state.canvas.add(state.drawingObject);
+                        break;
+                        
+                    case 'circle':
+                        state.drawingObject = new fabric.Circle({
+                            left: state.startX,
+                            top: state.startY,
+                            radius: 0,
+                            fill: 'transparent',
+                            stroke: state.currentColor,
+                            strokeWidth: state.strokeWidth,
+                            selectable: false,
+                            evented: false
+                        });
+                        state.canvas.add(state.drawingObject);
+                        break;
+                        
+                    case 'rect':
+                        state.drawingObject = new fabric.Rect({
+                            left: state.startX,
+                            top: state.startY,
+                            width: 0,
+                            height: 0,
+                            fill: 'transparent',
+                            stroke: state.currentColor,
+                            strokeWidth: state.strokeWidth,
+                            selectable: false,
+                            evented: false
+                        });
+                        state.canvas.add(state.drawingObject);
+                        break;
+                        
+                    case 'text':
+                        // Text is added via button click
+                        break;
+                }
+            }
+            
+            function handleCanvasMouseMove(opt) {
+                if (!state.isDrawing || !state.drawingObject) return;
+                
+                const pointer = state.canvas.getPointer(opt.e);
+                
+                switch (state.currentTool) {
+                    case 'arrow':
+                    case 'line':
+                        state.drawingObject.set({
+                            x2: pointer.x,
+                            y2: pointer.y
+                        });
+                        break;
+                        
+                    case 'circle':
+                        const radius = Math.sqrt(
+                            Math.pow(pointer.x - state.startX, 2) +
+                            Math.pow(pointer.y - state.startY, 2)
+                        ) / 2;
+                        const centerX = (state.startX + pointer.x) / 2;
+                        const centerY = (state.startY + pointer.y) / 2;
+                        state.drawingObject.set({
+                            left: centerX - radius,
+                            top: centerY - radius,
+                            radius: radius
+                        });
+                        break;
+                        
+                    case 'rect':
+                        const width = pointer.x - state.startX;
+                        const height = pointer.y - state.startY;
+                        state.drawingObject.set({
+                            width: Math.abs(width),
+                            height: Math.abs(height),
+                            left: width < 0 ? pointer.x : state.startX,
+                            top: height < 0 ? pointer.y : state.startY
+                        });
+                        break;
+                }
+                
+                state.canvas.renderAll();
+            }
+            
+            function handleCanvasMouseUp(opt) {
+                if (!state.isDrawing) return;
+                
+                state.isDrawing = false;
+                
+                if (state.drawingObject) {
+                    // Add arrow head if needed
+                    if (state.currentTool === 'arrow') {
+                        addArrowHead(state.drawingObject);
+                    }
+                    
+                    // Make object selectable
+                    state.drawingObject.set({
+                        selectable: true,
+                        evented: true
+                    });
+                    
+                    // Store annotation type
+                    state.drawingObject.annotationType = state.currentTool;
+                    
+                    state.canvas.setActiveObject(state.drawingObject);
+                    state.canvas.renderAll();
+                    state.drawingObject = null;
+                    
+                    // Switch to select tool
+                    handleToolSelect('select');
+                }
+            }
+            
+            function addArrowHead(line) {
+                const x1 = line.x1;
+                const y1 = line.y1;
+                const x2 = line.x2;
+                const y2 = line.y2;
+                
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const headLength = 15;
+                const headAngle = Math.PI / 6;
+                
+                const arrowHead = new fabric.Triangle({
+                    left: x2,
+                    top: y2,
+                    width: headLength,
+                    height: headLength,
+                    fill: state.currentColor,
+                    angle: (angle * 180 / Math.PI) + 90,
+                    originX: 'center',
+                    originY: 'center',
+                    selectable: false,
+                    evented: false
+                });
+                
+                // Group line and arrow head
+                const group = new fabric.Group([line, arrowHead], {
+                    selectable: true,
+                    evented: true
+                });
+                
+                state.canvas.remove(line);
+                state.canvas.add(group);
+                group.annotationType = 'arrow';
+                state.drawingObject = group;
+            }
+            
+            function handleSelectionCreated(opt) {
+                const activeObject = state.canvas.getActiveObject();
+                if (activeObject) {
+                    // Update sidebar to reflect selected object properties
+                    if (activeObject.stroke) {
+                        setColor(activeObject.stroke);
+                    }
+                    if (activeObject.strokeWidth) {
+                        elements.strokeWidth.value = activeObject.strokeWidth;
+                        elements.strokeWidthValue.textContent = activeObject.strokeWidth;
+                    }
+                    if (activeObject.type === 'i-text' && activeObject.fontSize) {
+                        elements.fontSize.value = activeObject.fontSize;
+                        elements.fontSizeValue.textContent = activeObject.fontSize;
+                        elements.fontSizeSection.style.display = 'block';
+                    }
+                }
+            }
+            
+            function handleSelectionCleared() {
+                elements.fontSizeSection.style.display = state.currentTool === 'text' ? 'block' : 'none';
+            }
+            
+            // ----------------------------------------
+            // Text Annotations
+            // ----------------------------------------
+            function addTextAnnotation() {
+                const text = elements.textContent.value.trim();
+                if (!text) {
+                    showToast('Please enter some text', 'error');
+                    return;
+                }
+                
+                const textObj = new fabric.IText(text, {
+                    left: 100,
+                    top: 100,
+                    fontFamily: 'Arial, sans-serif',
+                    fontSize: state.fontSize,
+                    fill: state.currentColor,
+                    fontWeight: 'bold'
+                });
+                
+                textObj.annotationType = 'text';
+                state.canvas.add(textObj);
+                state.canvas.setActiveObject(textObj);
+                state.canvas.renderAll();
+                
+                elements.textContent.value = '';
+                showToast('Text added', 'success');
+                handleToolSelect('select');
+            }
+            
+            function addTranscriptionAsAnnotation() {
+                if (!state.transcription) return;
+                
+                elements.textContent.value = state.transcription;
+                handleToolSelect('text');
+                addTextAnnotation();
+                
+                state.transcription = '';
+                elements.transcriptionBox.innerHTML = '<span style="color: var(--text-muted);">Transcription will appear here...</span>';
+                elements.transcriptionBox.classList.remove('has-content');
+                elements.addTranscriptionBtn.style.display = 'none';
+            }
+            
+            // ----------------------------------------
+            // Voice Recording
+            // ----------------------------------------
+            function toggleRecording() {
+                if (state.isRecording) {
+                    stopRecording();
+                } else {
+                    startRecording();
+                }
+            }
+            
+            function startRecording() {
+                if (!state.recognition) {
+                    showToast('Speech recognition not supported in this browser', 'error');
+                    return;
+                }
+                
+                state.isRecording = true;
+                elements.recordBtn.classList.add('recording');
+                elements.recordingStatus.textContent = 'Recording... Tap to stop';
+                elements.transcriptionBox.innerHTML = '<span style="color: var(--text-muted);">Listening...</span>';
+                
+                try {
+                    state.recognition.start();
+                } catch (e) {
+                    console.error('Error starting recognition:', e);
+                }
+            }
+            
+            function stopRecording() {
+                state.isRecording = false;
+                elements.recordBtn.classList.remove('recording');
+                elements.recordingStatus.textContent = 'Tap to start recording';
+                
+                if (state.recognition) {
+                    state.recognition.stop();
+                }
+            }
+            
+            // ----------------------------------------
+            // Photo Handling
+            // ----------------------------------------
+            function handleDragOver(e) {
+                e.preventDefault();
+                elements.dropZone.classList.add('dragover');
+            }
+            
+            function handleDragLeave(e) {
+                e.preventDefault();
+                elements.dropZone.classList.remove('dragover');
+            }
+            
+            function handleDrop(e) {
+                e.preventDefault();
+                elements.dropZone.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                handleFiles(files);
+            }
+            
+            function handleFileSelect(e) {
+                const files = e.target.files;
+                handleFiles(files);
+                e.target.value = ''; // Reset input
+            }
+            
+            function handleFiles(files) {
+                Array.from(files).forEach(file => {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            addPhotoToCanvas(e.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+            
+            function addPhotoToCanvas(dataUrl) {
+                fabric.Image.fromURL(dataUrl, function(img) {
+                    // Scale image to fit nicely on canvas
+                    const maxWidth = 400;
+                    const maxHeight = 300;
+                    const scale = Math.min(maxWidth / img.width, maxHeight / img.height);
+                    
+                    img.scale(scale);
+                    
+                    // Position based on number of existing photos
+                    const photoCount = state.photos.length;
+                    const col = photoCount % 2;
+                    const row = Math.floor(photoCount / 2);
+                    
+                    img.set({
+                        left: 50 + col * 450,
+                        top: 50 + row * 350,
+                        cornerSize: 20,
+                        cornerColor: '#2563eb',
+                        cornerStrokeColor: '#2563eb',
+                        transparentCorners: false
+                    });
+                    
+                    img.annotationType = 'image';
+                    state.canvas.add(img);
+                    state.canvas.renderAll();
+                    
+                    // Store reference
+                    state.photos.push({
+                        id: Date.now(),
+                        dataUrl: dataUrl,
+                        fabricObject: img
+                    });
+                    
+                    updatePhotoGrid();
+                    showToast('Photo added', 'success');
+                    handleToolSelect('select');
+                });
+            }
+            
+            function updatePhotoGrid() {
+                elements.photoGrid.innerHTML = '';
+                elements.photoCount.textContent = state.photos.length;
+                
+                state.photos.forEach((photo, index) => {
+                    const thumb = document.createElement('div');
+                    thumb.className = 'photo-thumb';
+                    thumb.innerHTML = `
+                        <img src="${photo.dataUrl}" alt="Photo ${index + 1}">
+                        <button class="delete-btn" data-index="${index}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    `;
+                    
+                    thumb.addEventListener('click', (e) => {
+                        if (!e.target.closest('.delete-btn')) {
+                            state.canvas.setActiveObject(photo.fabricObject);
+                            state.canvas.renderAll();
+                        }
+                    });
+                    
+                    thumb.querySelector('.delete-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deletePhoto(index);
+                    });
+                    
+                    elements.photoGrid.appendChild(thumb);
+                });
+            }
+            
+            function deletePhoto(index) {
+                const photo = state.photos[index];
+                state.canvas.remove(photo.fabricObject);
+                state.photos.splice(index, 1);
+                updatePhotoGrid();
+                state.canvas.renderAll();
+                showToast('Photo removed', 'success');
+            }
+            
+            // ----------------------------------------
+            // Camera
+            // ----------------------------------------
+            async function openCameraModal() {
+                elements.cameraModal.classList.add('active');
+                
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
+                    });
+                    elements.cameraVideo.srcObject = stream;
+                } catch (err) {
+                    console.error('Error accessing camera:', err);
+                    showToast('Could not access camera', 'error');
+                    closeCameraModal();
+                }
+            }
+            
+            function closeCameraModal() {
+                elements.cameraModal.classList.remove('active');
+                
+                const stream = elements.cameraVideo.srcObject;
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                elements.cameraVideo.srcObject = null;
+            }
+            
+            function capturePhoto() {
+                const video = elements.cameraVideo;
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+                
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                addPhotoToCanvas(dataUrl);
+                closeCameraModal();
+            }
+            
+            // ----------------------------------------
+            // Annotations List
+            // ----------------------------------------
+            function updateAnnotationsList() {
+                const objects = state.canvas.getObjects().filter(obj => obj.annotationType);
+                elements.annotationCount.textContent = objects.length;
+                
+                elements.annotationsList.innerHTML = '';
+                
+                objects.forEach((obj, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'annotation-item';
+                    
+                    let typeName = obj.annotationType || 'Unknown';
+                    typeName = typeName.charAt(0).toUpperCase() + typeName.slice(1);
+                    
+                    let description = '';
+                    if (obj.type === 'i-text') {
+                        description = obj.text.substring(0, 30) + (obj.text.length > 30 ? '...' : '');
+                    } else if (obj.annotationType === 'image') {
+                        description = 'Photo ' + (state.photos.findIndex(p => p.fabricObject === obj) + 1);
+                    }
+                    
+                    const color = obj.stroke || obj.fill || '#000000';
+                    
+                    item.innerHTML = `
+                        <div class="annotation-item-header">
+                            <span class="annotation-type">
+                                <span class="color-dot" style="background: ${color};"></span>
+                                ${typeName}
+                            </span>
+                        </div>
+                        ${description ? `<div class="annotation-text">${description}</div>` : ''}
+                    `;
+                    
+                    item.addEventListener('click', () => {
+                        state.canvas.setActiveObject(obj);
+                        state.canvas.renderAll();
+                    });
+                    
+                    elements.annotationsList.appendChild(item);
+                });
+            }
+            
+            function deleteSelectedObjects() {
+                const activeObjects = state.canvas.getActiveObjects();
+                if (activeObjects.length === 0) {
+                    showToast('No objects selected', 'error');
+                    return;
+                }
+                
+                activeObjects.forEach(obj => {
+                    // Remove from photos array if it's a photo
+                    const photoIndex = state.photos.findIndex(p => p.fabricObject === obj);
+                    if (photoIndex !== -1) {
+                        state.photos.splice(photoIndex, 1);
+                        updatePhotoGrid();
+                    }
+                    
+                    state.canvas.remove(obj);
+                });
+                
+                state.canvas.discardActiveObject();
+                state.canvas.renderAll();
+                showToast('Objects deleted', 'success');
+                handleToolSelect('select');
+            }
+            
+            // ----------------------------------------
+            // Settings
+            // ----------------------------------------
+            function openSettingsModal() {
+                elements.settingsModal.classList.add('active');
+                elements.paperSize.value = state.settings.paperSize;
+                elements.creatorName.value = state.settings.creatorName;
+                elements.pdfQuality.value = state.settings.pdfQuality;
+                elements.settingsOpenaiKey.value = state.settings.openaiKey;
+            }
+            
+            function closeSettingsModal() {
+                elements.settingsModal.classList.remove('active');
+            }
+            
+            function saveSettings() {
+                state.settings.paperSize = elements.paperSize.value;
+                state.settings.creatorName = elements.creatorName.value;
+                state.settings.pdfQuality = elements.pdfQuality.value;
+                state.settings.openaiKey = elements.settingsOpenaiKey.value;
+                
+                // Update meta display
+                elements.sheetMeta.innerHTML = `Created by ${state.settings.creatorName} on <span id="currentDate">${elements.currentDate.textContent}</span>`;
+                
+                // Sync with AI section
+                elements.openaiKey.value = state.settings.openaiKey;
+                
+                // Save to localStorage
+                localStorage.setItem('specsheet_settings', JSON.stringify(state.settings));
+                
+                // Update paper size
+                updatePaperSize();
+                
+                closeSettingsModal();
+                showToast('Settings saved', 'success');
+            }
+            
+            function loadSettings() {
+                const saved = localStorage.getItem('specsheet_settings');
+                if (saved) {
+                    try {
+                        state.settings = { ...state.settings, ...JSON.parse(saved) };
+                        elements.openaiKey.value = state.settings.openaiKey;
+                        elements.sheetMeta.innerHTML = `Created by ${state.settings.creatorName} on <span id="currentDate">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>`;
+                    } catch (e) {
+                        console.error('Error loading settings:', e);
+                    }
+                }
+            }
+            
+            function updatePaperSize() {
+                const size = paperSizes[state.settings.paperSize];
+                elements.paperContainer.style.width = size.width + 'px';
+                elements.paperContainer.style.height = size.height + 'px';
+                elements.paperContainer.style.minWidth = size.width + 'px';
+                elements.paperContainer.style.minHeight = size.height + 'px';
+                
+                state.canvas.setDimensions({
+                    width: size.width,
+                    height: size.height - 70
+                });
+                state.canvas.renderAll();
+            }
+            
+            // ----------------------------------------
+            // Preview Mode
+            // ----------------------------------------
+            function togglePreview() {
+                document.querySelector('.main-container').classList.toggle('preview-mode');
+                const isPreview = document.querySelector('.main-container').classList.contains('preview-mode');
+                elements.previewBtn.innerHTML = isPreview ? `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                    Edit
+                ` : `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    Preview
+                `;
+            }
+            
+            // ----------------------------------------
+            // AI Integration
+            // ----------------------------------------
+            async function generateAiSuggestions() {
+                const apiKey = elements.openaiKey.value || state.settings.openaiKey;
+                
+                if (!apiKey) {
+                    showToast('Please enter your OpenAI API key in settings', 'error');
+                    return;
+                }
+                
+                showLoading('Analyzing your spec sheet...');
+                
+                try {
+                    // Gather current content
+                    const title = elements.sheetTitle.value;
+                    const annotations = state.canvas.getObjects()
+                        .filter(obj => obj.type === 'i-text')
+                        .map(obj => obj.text);
+                    
+                    const prompt = `You are helping create a professional specification/instruction sheet. 
+                    
+Current title: "${title}"
+Current annotations: ${annotations.join(', ') || 'None yet'}
+Number of photos: ${state.photos.length}
+
+Please provide 3-4 specific suggestions to improve this specification sheet. Consider:
+1. Clearer phrasing for instructions
+2. Missing information that should be added
+3. Better organization
+4. Professional formatting tips
+
+Format your response as a JSON array of objects with "suggestion" and "action" fields.
+Example: [{"suggestion": "Add measurement units", "action": "Include mm or inches for all dimensions"}]`;
+
+                    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: 'gpt-3.5-turbo',
+                            messages: [{ role: 'user', content: prompt }],
+                            max_tokens: 500
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('API request failed');
+                    }
+                    
+                    const data = await response.json();
+                    const content = data.choices[0].message.content;
+                    
+                    // Parse suggestions
+                    let suggestions = [];
+                    try {
+                        suggestions = JSON.parse(content);
+                    } catch {
+                        // If not valid JSON, create simple suggestions
+                        suggestions = [{ suggestion: content, action: 'Review and apply' }];
+                    }
+                    
+                    // Display suggestions
+                    displayAiSuggestions(suggestions);
+                    
+                } catch (error) {
+                    console.error('AI error:', error);
+                    showToast('Error generating suggestions. Check your API key.', 'error');
+                } finally {
+                    hideLoading();
+                }
+            }
+            
+            function displayAiSuggestions(suggestions) {
+                elements.aiSuggestionsList.innerHTML = '';
+                
+                suggestions.forEach((item, index) => {
+                    const suggestionEl = document.createElement('div');
+                    suggestionEl.className = 'ai-suggestion-item';
+                    suggestionEl.innerHTML = `
+                        <strong>${item.suggestion}</strong>
+                        <p style="font-size: 13px; opacity: 0.9; margin-top: 5px;">${item.action}</p>
+                    `;
+                    
+                    suggestionEl.addEventListener('click', () => {
+                        // Add suggestion as text annotation
+                        elements.textContent.value = item.suggestion;
+                        handleToolSelect('text');
+                        showToast('Suggestion added to text input', 'success');
+                    });
+                    
+                    elements.aiSuggestionsList.appendChild(suggestionEl);
+                });
+            }
+            
+            // ----------------------------------------
+            // PDF Export
+            // ----------------------------------------
+            async function exportPdf() {
+                showLoading('Generating PDF...');
+                
+                try {
+                    // Get quality settings
+                    const qualityMap = { high: 3, medium: 2, low: 1 };
+                    const quality = qualityMap[state.settings.pdfQuality] || 2;
+                    
+                    // Create temporary container for export
+                    const exportContainer = document.createElement('div');
+                    exportContainer.style.position = 'absolute';
+                    exportContainer.style.left = '-9999px';
+                    exportContainer.style.background = 'white';
+                    document.body.appendChild(exportContainer);
+                    
+                    // Clone paper container
+                    const paperClone = elements.paperContainer.cloneNode(true);
+                    
+                    // Get canvas data URL
+                    const canvasDataUrl = state.canvas.toDataURL({
+                        format: 'png',
+                        quality: 1,
+                        multiplier: quality
+                    });
+                    
+                    // Replace canvas with image
+                    const canvasEl = paperClone.querySelector('canvas');
+                    if (canvasEl) {
+                        const img = document.createElement('img');
+                        img.src = canvasDataUrl;
+                        img.style.position = 'absolute';
+                        img.style.top = '70px';
+                        img.style.left = '0';
+                        img.style.width = state.canvas.width + 'px';
+                        img.style.height = state.canvas.height + 'px';
+                        canvasEl.parentNode.replaceChild(img, canvasEl);
+                    }
+                    
+                    exportContainer.appendChild(paperClone);
+                    
+                    // Wait for images to load
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Use html2canvas
+                    const canvas = await html2canvas(paperClone, {
+                        scale: quality,
+                        useCORS: true,
+                        logging: false
+                    });
+                    
+                    // Create PDF
+                    const { jsPDF } = window.jspdf;
+                    const size = paperSizes[state.settings.paperSize];
+                    
+                    // Convert pixels to mm (at 96 DPI)
+                    const widthMm = size.width * 0.264583;
+                    const heightMm = size.height * 0.264583;
+                    
+                    const pdf = new jsPDF({
+                        orientation: 'landscape',
+                        unit: 'mm',
+                        format: [widthMm, heightMm]
+                    });
+                    
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                    pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
+                    
+                    // Generate filename
+                    const title = elements.sheetTitle.value.replace(/[^a-z0-9]/gi, '_') || 'SpecSheet';
+                    const date = new Date().toISOString().split('T')[0];
+                    const filename = `${title}_${date}.pdf`;
+                    
+                    pdf.save(filename);
+                    
+                    // Cleanup
+                    document.body.removeChild(exportContainer);
+                    
+                    showToast('PDF exported successfully!', 'success');
+                    
+                } catch (error) {
+                    console.error('PDF export error:', error);
+                    showToast('Error exporting PDF', 'error');
+                } finally {
+                    hideLoading();
+                }
+            }
+            
+            // ----------------------------------------
+            // Keyboard Shortcuts
+            // ----------------------------------------
+            function handleKeydown(e) {
+                // Delete key
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    const activeElement = document.activeElement;
+                    if (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+                        deleteSelectedObjects();
+                    }
+                }
+                
+                // Escape key
+                if (e.key === 'Escape') {
+                    state.canvas.discardActiveObject();
+                    state.canvas.renderAll();
+                    closeCameraModal();
+                    closeSettingsModal();
+                }
+                
+                // Ctrl/Cmd + S to save/export
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    exportPdf();
+                }
+            }
+            
+            // ----------------------------------------
+            // Utility Functions
+            // ----------------------------------------
+            function showLoading(text = 'Processing...') {
+                elements.loadingText.textContent = text;
+                elements.loadingOverlay.classList.add('active');
+            }
+            
+            function hideLoading() {
+                elements.loadingOverlay.classList.remove('active');
+            }
+            
+            function showToast(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.textContent = message;
+                elements.toastContainer.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+            
+            // ----------------------------------------
+            // Initialize App
+            // ----------------------------------------
+            init();
+            
+            // ----------------------------------------
+            // Service Worker Registration
+            // ----------------------------------------
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./sw.js')
+                        .then(registration => {
+                            console.log('ServiceWorker registered:', registration.scope);
+                            
+                            // Check for updates
+                            registration.addEventListener('updatefound', () => {
+                                const newWorker = registration.installing;
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        showToast('New version available! Refresh to update.', 'info');
+                                    }
+                                });
+                            });
+                        })
+                        .catch(error => {
+                            console.error('ServiceWorker registration failed:', error);
+                        });
+                });
+            }
+            
+        })();
+    </script>
+</body>
+</html>
