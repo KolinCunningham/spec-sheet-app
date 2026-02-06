@@ -2289,87 +2289,56 @@ Example:
                             break;
                     }
                     
-                    const prompt = `You are an expert at analyzing photos and creating professional specification sheets.
+                    const prompt = `You are an expert at analyzing warehouse/industrial photos with handwritten notes and converting them into clean, professional specification sheets.
 
-ANALYZE THE PHOTO(S) PROVIDED and create a detailed spec sheet.
+TASK: Analyze this photo and transcribe ALL handwritten notes into clean, typed text.
 
 ${additionalNotes ? `USER'S ADDITIONAL NOTES:\n${additionalNotes}\n` : ''}
 
-OUTPUT STYLE: ${outputStyle}
-${styleInstructions}
+CRITICAL INSTRUCTIONS:
+1. READ ALL HANDWRITTEN TEXT in the photo carefully - this is the most important part
+2. Identify WHAT the photo shows (equipment name, model, configuration)
+3. Extract ALL measurements mentioned (clearances, distances, dimensions)
+4. Note the position/state shown (e.g., "Closed Position", "Open Position", "Folded")
+5. Identify any dates, initials, or creator marks
+6. Describe what the equipment does or its purpose
 
-CANVAS SIZE: ${canvasWidth}px wide × ${canvasHeight}px tall
+The photo will be displayed LARGE on the left side of the canvas (approximately 500x400 pixels starting at position 50,80).
+The specifications list will be on the RIGHT side.
 
-Look at the image(s) carefully and:
-1. Identify what the object/item is
-2. Estimate or extract all visible dimensions
-3. Note materials, finishes, colors if visible
-4. Identify key features, mounting points, clearances
-5. Look for any text, labels, or measurements in the photos
-6. If handwritten notes are visible, transcribe them
-
-Return a JSON object with annotations to place on the canvas:
+Return JSON with this EXACT structure:
 {
-    "title": "DESCRIPTIVE TITLE OF WHAT'S IN THE PHOTO",
-    "description": "Brief description of what you see",
-    "identified_items": ["item 1", "item 2"],
-    "annotations": [
+    "title": "EQUIPMENT NAME - CONFIGURATION",
+    "subtitle": "Position or state shown",
+    "transcribed_notes": [
         {
-            "type": "label",
-            "text": "Description or measurement",
-            "x": 100,
-            "y": 100,
-            "fontSize": 14,
-            "color": "#000000",
-            "backgroundColor": "#ffff00"
-        },
-        {
-            "type": "dimension",
-            "label": "1050mm",
-            "x1": 100,
-            "y1": 200,
-            "x2": 300,
-            "y2": 200,
-            "color": "#2563eb"
-        },
-        {
-            "type": "callout",
-            "text": "Important feature",
-            "x": 200,
-            "y": 150,
-            "arrowTo": {"x": 250, "y": 180},
-            "color": "#dc2626"
-        },
-        {
-            "type": "box",
-            "x": 150,
-            "y": 100,
-            "width": 200,
-            "height": 150,
-            "label": "Main component",
-            "color": "#16a34a"
+            "original": "The exact handwritten text",
+            "cleaned": "Clean typed version",
+            "position": "where on photo: top-left, top-right, center, bottom-left, bottom-right, etc."
         }
     ],
     "specifications": [
-        {"name": "Overall Width", "value": "600mm"},
-        {"name": "Height", "value": "400mm"},
-        {"name": "Material", "value": "Steel tubing"},
-        {"name": "Clearance", "value": "1050mm from ground"}
+        {"label": "Model", "value": "extracted model name"},
+        {"label": "Configuration", "value": "what setup is shown"},
+        {"label": "Vehicle Clearance", "value": "XXXXmm"},
+        {"label": "Ground Clearance", "value": "XXXmm"},
+        {"label": "Position Shown", "value": "Closed/Open/Folded"},
+        {"label": "Date", "value": "if visible"},
+        {"label": "Created By", "value": "if visible"}
+    ],
+    "features": [
+        "Key feature 1",
+        "Key feature 2"
     ],
     "notes": [
-        "Note 1 from analysis",
-        "Note 2 from analysis"
+        "Important note 1",
+        "Important note 2"
     ]
 }
 
-POSITIONING GUIDE:
-- Place annotations near the relevant part of where photos will be displayed
-- Photos are typically placed in the left/center area of the canvas
-- Use coordinates: x from 50-${canvasWidth - 300}, y from 50-${canvasHeight - 150}
-- Place the spec list on the right side around x=${canvasWidth - 280}
-- Keep annotations readable and not overlapping
+BE PRECISE - Read every piece of handwritten text carefully. If you can't read something clearly, indicate that with [unclear].
 
-Return ONLY valid JSON, no other text.`;
+Return ONLY the JSON, no other text.`;
 
                     // Add text prompt at the end
                     imageContents.push({
@@ -2442,9 +2411,10 @@ Return ONLY valid JSON, no other text.`;
             function displayAnalysisPreview(data) {
                 elements.aiSuggestionsList.innerHTML = '';
                 
-                const annotations = data.annotations || [];
                 const specs = data.specifications || [];
                 const notes = data.notes || [];
+                const transcribed = data.transcribed_notes || [];
+                const features = data.features || [];
                 
                 const previewEl = document.createElement('div');
                 previewEl.style.cssText = 'font-size: 13px; color: var(--text-color);';
@@ -2452,35 +2422,39 @@ Return ONLY valid JSON, no other text.`;
                 previewEl.innerHTML = `
                     <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--primary-color);">
                         <strong style="font-size: 15px;">${data.title || 'Photo Analysis'}</strong>
-                        ${data.description ? `<p style="margin-top: 5px; opacity: 0.8; font-size: 12px;">${data.description}</p>` : ''}
+                        ${data.subtitle ? `<p style="margin-top: 5px; opacity: 0.8; font-size: 12px;">${data.subtitle}</p>` : ''}
                     </div>
                     
-                    ${specs.length > 0 ? `
+                    ${transcribed.length > 0 ? `
                     <div style="margin-bottom: 12px;">
-                        <strong style="color: var(--primary-color);">Specifications Found:</strong>
-                        <ul style="margin: 8px 0; padding-left: 20px; font-size: 12px;">
-                            ${specs.map(s => `<li><strong>${s.name}:</strong> ${s.value}</li>`).join('')}
+                        <strong style="color: var(--success-color);">Handwritten Notes Found:</strong>
+                        <ul style="margin: 8px 0; padding-left: 15px; font-size: 11px;">
+                            ${transcribed.map(t => `<li>"${t.original}" → <strong>${t.cleaned}</strong></li>`).join('')}
                         </ul>
                     </div>
                     ` : ''}
                     
-                    ${annotations.length > 0 ? `
+                    ${specs.length > 0 ? `
                     <div style="margin-bottom: 12px;">
-                        <strong style="color: var(--success-color);">Annotations: ${annotations.length}</strong>
+                        <strong style="color: var(--primary-color);">Specifications:</strong>
+                        <ul style="margin: 8px 0; padding-left: 15px; font-size: 11px;">
+                            ${specs.slice(0, 5).map(s => `<li><strong>${s.label}:</strong> ${s.value}</li>`).join('')}
+                            ${specs.length > 5 ? `<li>...and ${specs.length - 5} more</li>` : ''}
+                        </ul>
                     </div>
                     ` : ''}
                     
-                    ${notes.length > 0 ? `
+                    ${features.length > 0 ? `
                     <div style="margin-bottom: 12px;">
-                        <strong style="color: var(--warning-color);">Notes:</strong>
-                        <ul style="margin: 8px 0; padding-left: 20px; font-size: 12px;">
-                            ${notes.map(n => `<li>${n}</li>`).join('')}
+                        <strong style="color: var(--warning-color);">Features:</strong>
+                        <ul style="margin: 8px 0; padding-left: 15px; font-size: 11px;">
+                            ${features.map(f => `<li>${f}</li>`).join('')}
                         </ul>
                     </div>
                     ` : ''}
                     
                     <p style="margin-top: 15px; padding: 10px; background: var(--primary-color); color: white; border-radius: 8px; text-align: center; font-weight: bold;">
-                        Click "Apply to Canvas" to add annotations!
+                        Click "Apply to Canvas" to create spec sheet!
                     </p>
                 `;
                 
@@ -2494,54 +2468,315 @@ Return ONLY valid JSON, no other text.`;
                     return;
                 }
                 
-                // Clear existing annotation elements but keep photos
-                const objectsToRemove = state.canvas.getObjects().filter(obj => 
-                    obj.annotationType && (obj.annotationType.startsWith('cad-') || obj.annotationType.startsWith('ai-'))
-                );
-                objectsToRemove.forEach(obj => state.canvas.remove(obj));
+                // Clear ALL objects and rebuild properly
+                state.canvas.clear();
+                state.canvas.backgroundColor = '#ffffff';
                 
-                // Apply the photo analysis annotations
-                applyPhotoAnalysis(generatedDrawing);
+                // Create professional spec sheet layout
+                createProfessionalSpecSheet(generatedDrawing);
                 elements.applySpecsBtn.style.display = 'none';
-                showToast('Annotations applied to canvas!', 'success');
+                showToast('Spec sheet created!', 'success');
             }
             
-            function applyPhotoAnalysis(data) {
-                // Draw annotations from AI analysis
-                const annotations = data.annotations || [];
-                const specs = data.specifications || [];
-                const notes = data.notes || [];
+            function createProfessionalSpecSheet(data) {
+                const canvasWidth = state.canvas.width;
+                const canvasHeight = state.canvas.height;
                 
-                // Draw each annotation
-                annotations.forEach(ann => {
-                    switch (ann.type) {
-                        case 'label':
-                            drawAnalysisLabel(ann);
-                            break;
-                        case 'dimension':
-                            drawAnalysisDimension(ann);
-                            break;
-                        case 'callout':
-                            drawAnalysisCallout(ann);
-                            break;
-                        case 'box':
-                            drawAnalysisBox(ann);
-                            break;
-                    }
+                // Layout constants
+                const margin = 30;
+                const photoAreaWidth = canvasWidth * 0.55;
+                const photoAreaHeight = canvasHeight - 180;
+                const specsAreaX = photoAreaWidth + 50;
+                const specsAreaWidth = canvasWidth - specsAreaX - margin;
+                
+                // === DRAW PHOTO LARGE ON LEFT SIDE ===
+                if (state.photos.length > 0) {
+                    const photo = state.photos[0];
+                    
+                    fabric.Image.fromURL(photo.dataUrl, function(img) {
+                        // Scale to fit photo area while maintaining aspect ratio
+                        const scale = Math.min(
+                            (photoAreaWidth - 20) / img.width,
+                            (photoAreaHeight - 20) / img.height
+                        );
+                        
+                        img.scale(scale);
+                        img.set({
+                            left: margin + 10,
+                            top: 90,
+                            selectable: true
+                        });
+                        img.annotationType = 'spec-photo';
+                        state.canvas.add(img);
+                        
+                        // Add photo border
+                        const photoBorder = new fabric.Rect({
+                            left: margin,
+                            top: 80,
+                            width: img.width * scale + 20,
+                            height: img.height * scale + 20,
+                            stroke: '#333333',
+                            strokeWidth: 2,
+                            fill: 'transparent',
+                            selectable: false
+                        });
+                        photoBorder.annotationType = 'spec-border';
+                        state.canvas.add(photoBorder);
+                        
+                        // Add transcribed notes as clean labels near the photo
+                        const transcribed = data.transcribed_notes || [];
+                        const photoRight = margin + img.width * scale + 20;
+                        const photoBottom = 80 + img.height * scale + 20;
+                        
+                        transcribed.forEach((note, idx) => {
+                            let labelX, labelY;
+                            
+                            // Position based on where note was in photo
+                            switch(note.position) {
+                                case 'top-left':
+                                    labelX = margin + 30;
+                                    labelY = 100;
+                                    break;
+                                case 'top-right':
+                                case 'top':
+                                    labelX = margin + 200;
+                                    labelY = 95;
+                                    break;
+                                case 'center':
+                                case 'center-right':
+                                    labelX = photoRight - 200;
+                                    labelY = 80 + (photoAreaHeight / 2);
+                                    break;
+                                case 'bottom-left':
+                                case 'bottom':
+                                    labelX = margin + 30;
+                                    labelY = photoBottom - 60;
+                                    break;
+                                case 'bottom-right':
+                                    labelX = photoRight - 200;
+                                    labelY = photoBottom - 60;
+                                    break;
+                                default:
+                                    labelX = margin + 30;
+                                    labelY = 120 + (idx * 40);
+                            }
+                            
+                            // Clean label with background
+                            const labelBg = new fabric.Rect({
+                                left: labelX - 5,
+                                top: labelY - 5,
+                                width: 180,
+                                height: 28,
+                                fill: '#ffeb3b',
+                                rx: 3,
+                                ry: 3,
+                                selectable: false
+                            });
+                            labelBg.annotationType = 'spec-label-bg';
+                            state.canvas.add(labelBg);
+                            
+                            const label = new fabric.Text(note.cleaned, {
+                                left: labelX,
+                                top: labelY,
+                                fontFamily: 'Arial',
+                                fontSize: 14,
+                                fontWeight: 'bold',
+                                fill: '#000000',
+                                selectable: true
+                            });
+                            label.annotationType = 'spec-label';
+                            state.canvas.add(label);
+                        });
+                        
+                        state.canvas.renderAll();
+                    });
+                }
+                
+                // === TITLE AT TOP ===
+                const title = new fabric.Text(data.title || 'SPECIFICATION SHEET', {
+                    left: margin,
+                    top: 25,
+                    fontFamily: 'Arial',
+                    fontSize: 22,
+                    fontWeight: 'bold',
+                    fill: '#1a1a1a'
+                });
+                title.annotationType = 'spec-title';
+                state.canvas.add(title);
+                
+                // Subtitle
+                if (data.subtitle) {
+                    const subtitle = new fabric.Text(data.subtitle, {
+                        left: margin,
+                        top: 52,
+                        fontFamily: 'Arial',
+                        fontSize: 14,
+                        fill: '#666666'
+                    });
+                    subtitle.annotationType = 'spec-subtitle';
+                    state.canvas.add(subtitle);
+                }
+                
+                // Date on top right
+                const dateText = new fabric.Text(`Created: ${new Date().toLocaleDateString()}`, {
+                    left: canvasWidth - 180,
+                    top: 30,
+                    fontFamily: 'Arial',
+                    fontSize: 12,
+                    fill: '#666666'
+                });
+                dateText.annotationType = 'spec-date';
+                state.canvas.add(dateText);
+                
+                // === SPECIFICATIONS BOX ON RIGHT ===
+                const specsBoxY = 80;
+                const specsBoxHeight = canvasHeight - 200;
+                
+                // Specs header
+                const specsHeader = new fabric.Text('SPECIFICATIONS', {
+                    left: specsAreaX,
+                    top: specsBoxY,
+                    fontFamily: 'Arial',
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    fill: '#1a1a1a'
+                });
+                specsHeader.annotationType = 'spec-header';
+                state.canvas.add(specsHeader);
+                
+                // Underline
+                const specsUnderline = new fabric.Line([specsAreaX, specsBoxY + 22, specsAreaX + specsAreaWidth - 20, specsBoxY + 22], {
+                    stroke: '#1a1a1a',
+                    strokeWidth: 2
+                });
+                specsUnderline.annotationType = 'spec-underline';
+                state.canvas.add(specsUnderline);
+                
+                // Specification items
+                const specs = data.specifications || [];
+                specs.forEach((spec, idx) => {
+                    const specY = specsBoxY + 40 + (idx * 28);
+                    
+                    const specLabel = new fabric.Text(`${spec.label}:`, {
+                        left: specsAreaX,
+                        top: specY,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fill: '#666666'
+                    });
+                    specLabel.annotationType = 'spec-item';
+                    state.canvas.add(specLabel);
+                    
+                    const specValue = new fabric.Text(spec.value || 'N/A', {
+                        left: specsAreaX + 120,
+                        top: specY,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        fill: '#1a1a1a'
+                    });
+                    specValue.annotationType = 'spec-item';
+                    state.canvas.add(specValue);
                 });
                 
-                // Draw specifications list on the right side
-                if (specs.length > 0) {
-                    drawSpecificationsList(data.title, specs);
+                // === FEATURES SECTION ===
+                const features = data.features || [];
+                if (features.length > 0) {
+                    const featuresY = specsBoxY + 50 + (specs.length * 28);
+                    
+                    const featuresHeader = new fabric.Text('FEATURES', {
+                        left: specsAreaX,
+                        top: featuresY,
+                        fontFamily: 'Arial',
+                        fontSize: 14,
+                        fontWeight: 'bold',
+                        fill: '#1a1a1a'
+                    });
+                    featuresHeader.annotationType = 'spec-features';
+                    state.canvas.add(featuresHeader);
+                    
+                    features.forEach((feature, idx) => {
+                        const featureText = new fabric.Text(`• ${feature}`, {
+                            left: specsAreaX,
+                            top: featuresY + 22 + (idx * 20),
+                            fontFamily: 'Arial',
+                            fontSize: 11,
+                            fill: '#333333'
+                        });
+                        featureText.annotationType = 'spec-feature';
+                        state.canvas.add(featureText);
+                    });
                 }
                 
-                // Draw notes at the bottom
+                // === NOTES SECTION AT BOTTOM ===
+                const notes = data.notes || [];
                 if (notes.length > 0) {
-                    drawNotesBlock(notes);
+                    const notesY = canvasHeight - 100;
+                    
+                    const notesHeader = new fabric.Text('NOTES:', {
+                        left: margin,
+                        top: notesY,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        fill: '#1a1a1a'
+                    });
+                    notesHeader.annotationType = 'spec-notes';
+                    state.canvas.add(notesHeader);
+                    
+                    notes.forEach((note, idx) => {
+                        const noteText = new fabric.Text(`${idx + 1}. ${note}`, {
+                            left: margin,
+                            top: notesY + 18 + (idx * 16),
+                            fontFamily: 'Arial',
+                            fontSize: 10,
+                            fill: '#333333'
+                        });
+                        noteText.annotationType = 'spec-note';
+                        state.canvas.add(noteText);
+                    });
                 }
                 
-                // Draw title block
-                drawTitleBlock({ title: data.title, scale: 'NTS' });
+                // === TITLE BLOCK (bottom right) ===
+                const blockWidth = 200;
+                const blockHeight = 60;
+                const blockX = canvasWidth - blockWidth - margin;
+                const blockY = canvasHeight - blockHeight - margin;
+                
+                const titleBlock = new fabric.Rect({
+                    left: blockX,
+                    top: blockY,
+                    width: blockWidth,
+                    height: blockHeight,
+                    stroke: '#333333',
+                    strokeWidth: 1,
+                    fill: '#f5f5f5'
+                });
+                titleBlock.annotationType = 'spec-titleblock';
+                state.canvas.add(titleBlock);
+                
+                const blockTitle = new fabric.Text(data.title ? data.title.substring(0, 25) : 'SPEC SHEET', {
+                    left: blockX + 10,
+                    top: blockY + 8,
+                    fontFamily: 'Arial',
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    fill: '#1a1a1a'
+                });
+                blockTitle.annotationType = 'spec-titleblock';
+                state.canvas.add(blockTitle);
+                
+                const blockInfo = new fabric.Text(
+                    `Date: ${new Date().toLocaleDateString()}\nDrawn: ${state.settings.creatorName || 'User'}\nSheet: 1 of 1`, {
+                    left: blockX + 10,
+                    top: blockY + 24,
+                    fontFamily: 'Arial',
+                    fontSize: 9,
+                    fill: '#666666',
+                    lineHeight: 1.3
+                });
+                blockInfo.annotationType = 'spec-titleblock';
+                state.canvas.add(blockInfo);
                 
                 state.canvas.renderAll();
                 updateAnnotationsList();
