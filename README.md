@@ -1,5 +1,7 @@
 # SpecSheet - Annotated Instruction Sheets
 
+## [>>> Launch App <<<](https://kolincunningham.github.io/spec-sheet-app)
+
 A web application optimized for iPad that allows users to create annotated printable sheets for instructions or specifications.
 
 ## Features
