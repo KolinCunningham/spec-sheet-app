@@ -89,15 +89,15 @@ Upload `index.html` and `sw.js` to any static hosting service:
 
 ## API Keys Required
 
-### OpenAI API Key (Optional)
+### Claude API Key (Optional)
 Required only for AI-powered suggestions feature.
 
-1. Go to [platform.openai.com](https://platform.openai.com)
+1. Go to [console.anthropic.com](https://console.anthropic.com)
 2. Create an account and add payment method
-3. Generate an API key
+3. Generate an API key (starts with `sk-ant-`)
 4. Enter the key in Settings within the app
 
-**Note**: The API key is stored locally in your browser and is sent directly to OpenAI's servers. Never share your API key publicly.
+**Note**: The API key is stored locally in your browser and is sent directly to Anthropic's servers. Never share your API key publicly.
 
 ### Speech Recognition
 Uses the browser's built-in Web Speech API - no API key required.
