@@ -1053,48 +1053,53 @@
                 
                 <!-- AI Section -->
                 <div class="sidebar-section" id="aiSection" style="display: none;">
-                    <div class="sidebar-section-title">AI Blueprint Generator</div>
+                    <div class="sidebar-section-title">AI Photo Analyzer</div>
                     
-                    <!-- Spec Requirements Input -->
-                    <div class="input-group">
-                        <label>Describe what to create:</label>
-                        <textarea id="specRequirements" placeholder="Describe your item in detail...
+                    <!-- Photo Analysis Mode -->
+                    <div class="ai-suggestions" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%);">
+                        <div class="ai-suggestions-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21 15 16 10 5 21"></polyline>
+                            </svg>
+                            Analyze Photos
+                        </div>
+                        <div style="font-size: 13px; opacity: 0.95;">
+                            <p><strong>Step 1:</strong> Upload or take photos</p>
+                            <p><strong>Step 2:</strong> Add any notes below (optional)</p>
+                            <p><strong>Step 3:</strong> Click "Analyze & Generate"</p>
+                            <p style="margin-top: 8px;">AI will examine your photos and create a professional spec sheet with dimensions and annotations.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Additional Notes Input -->
+                    <div class="input-group" style="margin-top: 15px;">
+                        <label>Additional Notes (optional)</label>
+                        <textarea id="specRequirements" placeholder="Add any extra details the AI should know...
 
 Example:
-A wall-mounted bike rack:
-- Overall width: 600mm
-- Height from wall: 400mm  
-- Clearance from ground: 1050mm
-- Two hook arms at 45° angle
-- Steel tubing 25mm diameter
-- Must fold flat against wall
-- Max load: 30kg per hook"></textarea>
+- Clearance should be 1050mm
+- Material is steel tubing
+- This is the folded position
+- Need 50mm gap from wall"></textarea>
                     </div>
                     
                     <!-- Drawing Style Selection -->
                     <div class="input-group" style="margin-top: 10px;">
-                        <label>Drawing Style</label>
+                        <label>Output Style</label>
                         <select id="drawingStyle">
+                            <option value="spec_sheet">Spec Sheet with Annotations</option>
                             <option value="technical">Technical Blueprint</option>
-                            <option value="isometric">Isometric View</option>
-                            <option value="front">Front Elevation</option>
-                            <option value="side">Side Elevation</option>
-                            <option value="top">Top/Plan View</option>
+                            <option value="measurements">Measurements Only</option>
+                            <option value="instructions">Assembly Instructions</option>
                         </select>
                     </div>
                     
-                    <div class="ai-suggestions" style="margin-top: 15px;">
-                        <div class="ai-suggestions-title">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                                <line x1="3" y1="9" x2="21" y2="9"></line>
-                                <line x1="9" y1="21" x2="9" y2="9"></line>
-                            </svg>
-                            Generated Drawing
-                        </div>
-                        <div id="aiSuggestionsList">
-                            <p style="font-size: 14px; opacity: 0.9;">Describe your item above with dimensions, then click "Generate Blueprint" to create a CAD-style technical drawing.</p>
-                        </div>
+                    <div id="aiSuggestionsList" style="margin-top: 15px; background: var(--bg-color); border-radius: 10px; padding: 15px;">
+                        <p style="font-size: 13px; color: var(--text-muted); text-align: center;">
+                            Upload photos first, then click "Analyze & Generate"
+                        </p>
                     </div>
                     
                     <div class="input-group" style="margin-top: 15px;">
@@ -1104,18 +1109,17 @@ A wall-mounted bike rack:
                     
                     <button class="btn btn-primary btn-sm" id="generateAiBtn" style="width: 100%; margin-top: 10px;">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                            <line x1="3" y1="9" x2="21" y2="9"></line>
-                            <line x1="9" y1="21" x2="9" y2="9"></line>
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
                         </svg>
-                        Generate Blueprint
+                        Analyze Photos & Generate
                     </button>
                     
                     <button class="btn btn-success btn-sm" id="applySpecsBtn" style="width: 100%; margin-top: 10px; display: none;">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                             <polyline points="20 6 9 17 4 12"></polyline>
                         </svg>
-                        Draw on Canvas
+                        Apply to Canvas
                     </button>
                     
                     <button class="btn btn-secondary btn-sm" id="clearCanvasBtn" style="width: 100%; margin-top: 10px;">
@@ -2217,203 +2221,161 @@ A wall-mounted bike rack:
                     return;
                 }
                 
-                const specRequirements = elements.specRequirements.value.trim();
-                
-                if (!specRequirements) {
-                    showToast('Please describe what you need to create', 'error');
+                // Check if we have photos to analyze
+                if (state.photos.length === 0) {
+                    showToast('Please upload at least one photo to analyze', 'error');
                     return;
                 }
                 
-                const drawingStyle = elements.drawingStyle.value;
-                showLoading('Generating precise CAD blueprint...');
+                const additionalNotes = elements.specRequirements.value.trim();
+                const outputStyle = elements.drawingStyle.value;
+                
+                showLoading('Analyzing photos with AI vision...');
                 
                 try {
                     const canvasWidth = state.canvas.width;
                     const canvasHeight = state.canvas.height;
                     
-                    // Drawing area (leave margins for dimensions and title block)
-                    const drawingArea = {
-                        left: 80,
-                        top: 60,
-                        width: canvasWidth - 400,
-                        height: canvasHeight - 200
-                    };
+                    // Prepare image data for Claude Vision
+                    const imageContents = [];
+                    for (const photo of state.photos) {
+                        // Get base64 data from dataUrl
+                        const base64Data = photo.dataUrl.split(',')[1];
+                        const mediaType = photo.dataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
+                        
+                        imageContents.push({
+                            type: "image",
+                            source: {
+                                type: "base64",
+                                media_type: mediaType,
+                                data: base64Data
+                            }
+                        });
+                    }
                     
-                    const prompt = `You are a precise CAD technical drawing generator. Create an EXACT technical drawing based on the specifications.
+                    // Build the prompt based on output style
+                    let styleInstructions = '';
+                    switch (outputStyle) {
+                        case 'spec_sheet':
+                            styleInstructions = `Create a professional SPECIFICATION SHEET with:
+- Title describing what the item is
+- Key measurements and dimensions you can identify or estimate
+- Material callouts if visible
+- Important features and their specifications
+- Any clearances or spacing visible
+- Assembly notes if applicable`;
+                            break;
+                        case 'technical':
+                            styleInstructions = `Create a TECHNICAL BLUEPRINT with:
+- Clean line drawing representing the object's shape
+- All visible dimensions with proper dimension lines
+- Multiple views if needed (front, side, top)
+- Hidden lines shown as dashed
+- Centerlines where appropriate`;
+                            break;
+                        case 'measurements':
+                            styleInstructions = `Focus on MEASUREMENTS ONLY:
+- Identify and list all dimensions you can determine
+- Estimate sizes based on visible references
+- Include width, height, depth, clearances
+- Note any spacing between components`;
+                            break;
+                        case 'instructions':
+                            styleInstructions = `Create ASSEMBLY/INSTALLATION INSTRUCTIONS:
+- Step-by-step notes for assembly or installation
+- Key measurements needed for installation
+- Safety clearances required
+- Important warnings or notes`;
+                            break;
+                    }
+                    
+                    const prompt = `You are an expert at analyzing photos and creating professional specification sheets.
 
-USER'S SPECIFICATIONS:
-${specRequirements}
+ANALYZE THE PHOTO(S) PROVIDED and create a detailed spec sheet.
 
-VIEW TYPE: ${drawingStyle}
-DRAWING AREA: ${drawingArea.width}px wide × ${drawingArea.height}px tall
-DRAWING ORIGIN: x=${drawingArea.left}, y=${drawingArea.top}
+${additionalNotes ? `USER'S ADDITIONAL NOTES:\n${additionalNotes}\n` : ''}
 
-CRITICAL INSTRUCTIONS:
-1. Parse ALL dimensions from the user's description (e.g., "600mm wide", "height 400mm")
-2. Calculate proper SCALE so the drawing fits the drawing area proportionally
-3. Convert real dimensions to pixel coordinates using consistent scale
-4. Draw the EXACT shape described - if it's a bracket, draw a bracket shape; if it's a rack, draw a rack
-5. Position dimension lines OUTSIDE the main shape with extension lines
-6. Use proper CAD conventions: solid lines for visible edges, dashed for hidden
+OUTPUT STYLE: ${outputStyle}
+${styleInstructions}
 
-COORDINATE SYSTEM:
-- Origin (0,0) is top-left of canvas
-- X increases rightward, Y increases downward  
-- Center your main drawing at approximately x=${drawingArea.left + drawingArea.width/2}, y=${drawingArea.top + drawingArea.height/2}
+CANVAS SIZE: ${canvasWidth}px wide × ${canvasHeight}px tall
 
-Return ONLY valid JSON:
+Look at the image(s) carefully and:
+1. Identify what the object/item is
+2. Estimate or extract all visible dimensions
+3. Note materials, finishes, colors if visible
+4. Identify key features, mounting points, clearances
+5. Look for any text, labels, or measurements in the photos
+6. If handwritten notes are visible, transcribe them
+
+Return a JSON object with annotations to place on the canvas:
 {
-    "title": "DESCRIPTIVE TITLE IN CAPS",
-    "scale": "1:10",
-    "realDimensions": ["600mm", "400mm", "1050mm"],
-    "views": [
+    "title": "DESCRIPTIVE TITLE OF WHAT'S IN THE PHOTO",
+    "description": "Brief description of what you see",
+    "identified_items": ["item 1", "item 2"],
+    "annotations": [
         {
-            "name": "FRONT VIEW",
-            "centerX": ${drawingArea.left + drawingArea.width/2},
-            "centerY": ${drawingArea.top + drawingArea.height/2}
-        }
-    ],
-    "shapes": [
+            "type": "label",
+            "text": "Description or measurement",
+            "x": 100,
+            "y": 100,
+            "fontSize": 14,
+            "color": "#000000",
+            "backgroundColor": "#ffff00"
+        },
         {
-            "type": "rect",
+            "type": "dimension",
+            "label": "1050mm",
+            "x1": 100,
+            "y1": 200,
+            "x2": 300,
+            "y2": 200,
+            "color": "#2563eb"
+        },
+        {
+            "type": "callout",
+            "text": "Important feature",
             "x": 200,
             "y": 150,
-            "width": 400,
-            "height": 250,
-            "stroke": "#000000",
-            "strokeWidth": 2,
-            "fill": "transparent",
-            "description": "Main body outline"
+            "arrowTo": {"x": 250, "y": 180},
+            "color": "#dc2626"
         },
         {
-            "type": "line",
-            "x1": 200,
-            "y1": 200,
-            "x2": 600,
-            "y2": 200,
-            "stroke": "#000000",
-            "strokeWidth": 1,
-            "strokeDashArray": [5, 5],
-            "description": "Center line"
-        },
-        {
-            "type": "circle",
-            "centerX": 300,
-            "centerY": 275,
-            "radius": 15,
-            "stroke": "#000000",
-            "strokeWidth": 2,
-            "fill": "transparent",
-            "description": "Mounting hole"
-        },
-        {
-            "type": "arc",
-            "centerX": 400,
-            "centerY": 300,
-            "radius": 50,
-            "startAngle": 0,
-            "endAngle": 90,
-            "stroke": "#000000",
-            "strokeWidth": 2,
-            "description": "Curved corner"
-        },
-        {
-            "type": "polyline",
-            "points": [{"x": 100, "y": 100}, {"x": 150, "y": 100}, {"x": 150, "y": 200}, {"x": 100, "y": 200}],
-            "stroke": "#000000",
-            "strokeWidth": 2,
-            "closed": true,
-            "description": "L-bracket profile"
+            "type": "box",
+            "x": 150,
+            "y": 100,
+            "width": 200,
+            "height": 150,
+            "label": "Main component",
+            "color": "#16a34a"
         }
     ],
-    "dimensions": [
-        {
-            "type": "horizontal",
-            "x1": 200,
-            "x2": 600,
-            "y": 420,
-            "extensionFromY": 400,
-            "label": "400mm",
-            "description": "Overall width"
-        },
-        {
-            "type": "vertical",
-            "y1": 150,
-            "y2": 400,
-            "x": 620,
-            "extensionFromX": 600,
-            "label": "250mm",
-            "description": "Overall height"
-        },
-        {
-            "type": "radius",
-            "centerX": 400,
-            "centerY": 300,
-            "radius": 50,
-            "angle": 45,
-            "label": "R50",
-            "description": "Corner radius"
-        },
-        {
-            "type": "diameter",
-            "centerX": 300,
-            "centerY": 275,
-            "diameter": 30,
-            "angle": 45,
-            "label": "Ø30",
-            "description": "Hole diameter"
-        }
-    ],
-    "labels": [
-        {
-            "text": "${drawingStyle.toUpperCase().replace('_', ' ')}",
-            "x": ${drawingArea.left + drawingArea.width/2},
-            "y": 40,
-            "fontSize": 18,
-            "fontWeight": "bold",
-            "align": "center"
-        }
+    "specifications": [
+        {"name": "Overall Width", "value": "600mm"},
+        {"name": "Height", "value": "400mm"},
+        {"name": "Material", "value": "Steel tubing"},
+        {"name": "Clearance", "value": "1050mm from ground"}
     ],
     "notes": [
-        "ALL DIMENSIONS IN MM",
-        "MATERIAL: [from user spec]",
-        "FINISH: [from user spec]",
-        "TOLERANCES: ±1mm UNLESS NOTED"
-    ],
-    "centerlines": [
-        {
-            "x1": 300,
-            "y1": 130,
-            "x2": 300,
-            "y2": 420,
-            "description": "Vertical centerline"
-        }
+        "Note 1 from analysis",
+        "Note 2 from analysis"
     ]
 }
 
-SHAPE TYPES SUPPORTED:
-- rect: Rectangle with x, y, width, height
-- line: Line with x1, y1, x2, y2
-- circle: Circle with centerX, centerY, radius  
-- arc: Arc with centerX, centerY, radius, startAngle, endAngle (degrees)
-- polyline: Connected lines with points array, closed: true/false
-- ellipse: Ellipse with centerX, centerY, rx, ry
+POSITIONING GUIDE:
+- Place annotations near the relevant part of where photos will be displayed
+- Photos are typically placed in the left/center area of the canvas
+- Use coordinates: x from 50-${canvasWidth - 300}, y from 50-${canvasHeight - 150}
+- Place the spec list on the right side around x=${canvasWidth - 280}
+- Keep annotations readable and not overlapping
 
-DIMENSION TYPES:
-- horizontal: Horizontal dimension with extension lines
-- vertical: Vertical dimension with extension lines
-- aligned: Angled dimension following a line
-- radius: Radius callout (R50)
-- diameter: Diameter callout (Ø30)
-- leader: Text with arrow pointing to feature
+Return ONLY valid JSON, no other text.`;
 
-BE PRECISE:
-- Calculate pixel positions mathematically from real dimensions
-- Ensure shapes connect properly at corners
-- Dimension lines should not overlap shapes
-- Extension lines should have small gap from object
-
-Return ONLY the JSON, no other text.`;
+                    // Add text prompt at the end
+                    imageContents.push({
+                        type: "text",
+                        text: prompt
+                    });
 
                     const response = await fetch('https://api.anthropic.com/v1/messages', {
                         method: 'POST',
@@ -2426,7 +2388,10 @@ Return ONLY the JSON, no other text.`;
                         body: JSON.stringify({
                             model: 'claude-sonnet-4-20250514',
                             max_tokens: 8000,
-                            messages: [{ role: 'user', content: prompt }]
+                            messages: [{ 
+                                role: 'user', 
+                                content: imageContents  // Array with images + text prompt
+                            }]
                         })
                     });
                     
@@ -2439,16 +2404,16 @@ Return ONLY the JSON, no other text.`;
                     const data = await response.json();
                     const content = data.content[0].text;
                     
-                    console.log('AI Response:', content);
+                    console.log('AI Vision Response:', content);
                     
-                    // Parse drawing data
-                    let drawingData = null;
+                    // Parse analysis data
+                    let analysisData = null;
                     try {
                         const jsonMatch = content.match(/\{[\s\S]*\}/);
                         if (jsonMatch) {
-                            drawingData = JSON.parse(jsonMatch[0]);
+                            analysisData = JSON.parse(jsonMatch[0]);
                         } else {
-                            drawingData = JSON.parse(content);
+                            analysisData = JSON.parse(content);
                         }
                     } catch (e) {
                         console.error('Parse error:', e);
@@ -2458,13 +2423,13 @@ Return ONLY the JSON, no other text.`;
                         return;
                     }
                     
-                    generatedDrawing = drawingData;
+                    generatedDrawing = analysisData;
                     
-                    if (drawingData.title) {
-                        elements.sheetTitle.value = drawingData.title;
+                    if (analysisData.title) {
+                        elements.sheetTitle.value = analysisData.title;
                     }
                     
-                    displayDrawingPreview(drawingData);
+                    displayAnalysisPreview(analysisData);
                     
                 } catch (error) {
                     console.error('AI error:', error);
@@ -2474,34 +2439,49 @@ Return ONLY the JSON, no other text.`;
                 }
             }
             
-            function displayDrawingPreview(drawingData) {
+            function displayAnalysisPreview(data) {
                 elements.aiSuggestionsList.innerHTML = '';
                 
-                const shapes = drawingData.shapes || [];
-                const dims = drawingData.dimensions || [];
-                const labels = drawingData.labels || [];
-                const notes = drawingData.notes || [];
+                const annotations = data.annotations || [];
+                const specs = data.specifications || [];
+                const notes = data.notes || [];
                 
                 const previewEl = document.createElement('div');
-                previewEl.style.cssText = 'font-size: 13px;';
+                previewEl.style.cssText = 'font-size: 13px; color: var(--text-color);';
                 
                 previewEl.innerHTML = `
-                    <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.3);">
-                        <strong>${drawingData.title || 'Untitled'}</strong><br>
-                        <span style="opacity: 0.8;">Scale: ${drawingData.scale || 'NTS'}</span>
+                    <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--primary-color);">
+                        <strong style="font-size: 15px;">${data.title || 'Photo Analysis'}</strong>
+                        ${data.description ? `<p style="margin-top: 5px; opacity: 0.8; font-size: 12px;">${data.description}</p>` : ''}
                     </div>
-                    <div style="margin-bottom: 10px;">
-                        <strong>Drawing Elements:</strong><br>
-                        • ${shapes.length} shapes<br>
-                        • ${dims.length} dimensions<br>
-                        • ${labels.length} labels<br>
-                        • ${notes.length} notes
+                    
+                    ${specs.length > 0 ? `
+                    <div style="margin-bottom: 12px;">
+                        <strong style="color: var(--primary-color);">Specifications Found:</strong>
+                        <ul style="margin: 8px 0; padding-left: 20px; font-size: 12px;">
+                            ${specs.map(s => `<li><strong>${s.name}:</strong> ${s.value}</li>`).join('')}
+                        </ul>
                     </div>
-                    <div style="margin-bottom: 10px; font-size: 11px; opacity: 0.8;">
-                        ${shapes.slice(0, 3).map(s => `• ${s.description || s.type}`).join('<br>')}
-                        ${shapes.length > 3 ? `<br>• ...and ${shapes.length - 3} more` : ''}
+                    ` : ''}
+                    
+                    ${annotations.length > 0 ? `
+                    <div style="margin-bottom: 12px;">
+                        <strong style="color: var(--success-color);">Annotations: ${annotations.length}</strong>
                     </div>
-                    <p style="opacity: 0.9; font-weight: bold;">Click "Draw on Canvas" to render!</p>
+                    ` : ''}
+                    
+                    ${notes.length > 0 ? `
+                    <div style="margin-bottom: 12px;">
+                        <strong style="color: var(--warning-color);">Notes:</strong>
+                        <ul style="margin: 8px 0; padding-left: 20px; font-size: 12px;">
+                            ${notes.map(n => `<li>${n}</li>`).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                    
+                    <p style="margin-top: 15px; padding: 10px; background: var(--primary-color); color: white; border-radius: 8px; text-align: center; font-weight: bold;">
+                        Click "Apply to Canvas" to add annotations!
+                    </p>
                 `;
                 
                 elements.aiSuggestionsList.appendChild(previewEl);
@@ -2510,21 +2490,221 @@ Return ONLY the JSON, no other text.`;
             
             function applyAllSpecs() {
                 if (!generatedDrawing) {
-                    showToast('No drawing generated yet', 'error');
+                    showToast('No analysis to apply', 'error');
                     return;
                 }
                 
-                // Clear existing CAD elements but keep photos
+                // Clear existing annotation elements but keep photos
                 const objectsToRemove = state.canvas.getObjects().filter(obj => 
-                    obj.annotationType && obj.annotationType.startsWith('cad-')
+                    obj.annotationType && (obj.annotationType.startsWith('cad-') || obj.annotationType.startsWith('ai-'))
                 );
                 objectsToRemove.forEach(obj => state.canvas.remove(obj));
                 
-                drawBlueprintOnCanvas(generatedDrawing);
+                // Apply the photo analysis annotations
+                applyPhotoAnalysis(generatedDrawing);
                 elements.applySpecsBtn.style.display = 'none';
-                showToast('Blueprint drawn on canvas!', 'success');
+                showToast('Annotations applied to canvas!', 'success');
             }
             
+            function applyPhotoAnalysis(data) {
+                // Draw annotations from AI analysis
+                const annotations = data.annotations || [];
+                const specs = data.specifications || [];
+                const notes = data.notes || [];
+                
+                // Draw each annotation
+                annotations.forEach(ann => {
+                    switch (ann.type) {
+                        case 'label':
+                            drawAnalysisLabel(ann);
+                            break;
+                        case 'dimension':
+                            drawAnalysisDimension(ann);
+                            break;
+                        case 'callout':
+                            drawAnalysisCallout(ann);
+                            break;
+                        case 'box':
+                            drawAnalysisBox(ann);
+                            break;
+                    }
+                });
+                
+                // Draw specifications list on the right side
+                if (specs.length > 0) {
+                    drawSpecificationsList(data.title, specs);
+                }
+                
+                // Draw notes at the bottom
+                if (notes.length > 0) {
+                    drawNotesBlock(notes);
+                }
+                
+                // Draw title block
+                drawTitleBlock({ title: data.title, scale: 'NTS' });
+                
+                state.canvas.renderAll();
+                updateAnnotationsList();
+            }
+            
+            function drawAnalysisLabel(ann) {
+                const text = new fabric.Text(ann.text || '', {
+                    left: ann.x || 100,
+                    top: ann.y || 100,
+                    fontFamily: 'Arial',
+                    fontSize: ann.fontSize || 14,
+                    fill: ann.color || '#000000',
+                    backgroundColor: ann.backgroundColor || 'transparent',
+                    padding: 5
+                });
+                text.annotationType = 'ai-label';
+                state.canvas.add(text);
+            }
+            
+            function drawAnalysisDimension(ann) {
+                const color = ann.color || '#2563eb';
+                const x1 = ann.x1 || 100;
+                const y1 = ann.y1 || 100;
+                const x2 = ann.x2 || 200;
+                const y2 = ann.y2 || 100;
+                
+                // Dimension line
+                const line = new fabric.Line([x1, y1, x2, y2], {
+                    stroke: color,
+                    strokeWidth: 2
+                });
+                line.annotationType = 'ai-dimension';
+                state.canvas.add(line);
+                
+                // Arrows
+                drawArrow(x1, y1, Math.atan2(y1 - y2, x1 - x2) * 180 / Math.PI, color, 8);
+                drawArrow(x2, y2, Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI, color, 8);
+                
+                // Label
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+                const text = new fabric.Text(ann.label || '', {
+                    left: midX,
+                    top: midY - 20,
+                    fontFamily: 'Arial',
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    fill: color,
+                    originX: 'center',
+                    backgroundColor: 'white',
+                    padding: 3
+                });
+                text.annotationType = 'ai-dimension';
+                state.canvas.add(text);
+            }
+            
+            function drawAnalysisCallout(ann) {
+                const color = ann.color || '#dc2626';
+                const x = ann.x || 100;
+                const y = ann.y || 100;
+                const arrowTo = ann.arrowTo || { x: x + 50, y: y + 30 };
+                
+                // Leader line
+                const line = new fabric.Line([x, y, arrowTo.x, arrowTo.y], {
+                    stroke: color,
+                    strokeWidth: 2
+                });
+                line.annotationType = 'ai-callout';
+                state.canvas.add(line);
+                
+                // Arrow at end
+                drawArrow(arrowTo.x, arrowTo.y, 
+                    Math.atan2(arrowTo.y - y, arrowTo.x - x) * 180 / Math.PI, color, 8);
+                
+                // Text with background
+                const text = new fabric.Text(ann.text || '', {
+                    left: x,
+                    top: y - 25,
+                    fontFamily: 'Arial',
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    fill: color,
+                    backgroundColor: '#fff3cd',
+                    padding: 5
+                });
+                text.annotationType = 'ai-callout';
+                state.canvas.add(text);
+            }
+            
+            function drawAnalysisBox(ann) {
+                const color = ann.color || '#16a34a';
+                
+                // Box outline
+                const rect = new fabric.Rect({
+                    left: ann.x || 100,
+                    top: ann.y || 100,
+                    width: ann.width || 100,
+                    height: ann.height || 100,
+                    stroke: color,
+                    strokeWidth: 3,
+                    strokeDashArray: [8, 4],
+                    fill: 'transparent'
+                });
+                rect.annotationType = 'ai-box';
+                state.canvas.add(rect);
+                
+                // Label above box
+                if (ann.label) {
+                    const text = new fabric.Text(ann.label, {
+                        left: ann.x || 100,
+                        top: (ann.y || 100) - 25,
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        fill: color,
+                        backgroundColor: 'white',
+                        padding: 3
+                    });
+                    text.annotationType = 'ai-box';
+                    state.canvas.add(text);
+                }
+            }
+            
+            function drawSpecificationsList(title, specs) {
+                const x = state.canvas.width - 300;
+                const y = 80;
+                const lineHeight = 22;
+                
+                // Header
+                const header = new fabric.Text('SPECIFICATIONS', {
+                    left: x,
+                    top: y,
+                    fontFamily: 'Arial',
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    fill: '#1f2937'
+                });
+                header.annotationType = 'ai-specs';
+                state.canvas.add(header);
+                
+                // Underline
+                const underline = new fabric.Line([x, y + 22, x + 180, y + 22], {
+                    stroke: '#1f2937',
+                    strokeWidth: 2
+                });
+                underline.annotationType = 'ai-specs';
+                state.canvas.add(underline);
+                
+                // Spec items
+                specs.forEach((spec, index) => {
+                    const specText = new fabric.Text(`${spec.name}: ${spec.value}`, {
+                        left: x,
+                        top: y + 35 + (index * lineHeight),
+                        fontFamily: 'Arial',
+                        fontSize: 12,
+                        fill: '#374151'
+                    });
+                    specText.annotationType = 'ai-specs';
+                    state.canvas.add(specText);
+                });
+            }
+            
+            // Legacy function for CAD drawings
             function drawBlueprintOnCanvas(drawing) {
                 // Draw border frame
                 drawBorderFrame();
